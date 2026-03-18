@@ -1,13 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 import MainLayout from './components/layout/MainLayout';
 import WelcomeScreen from './components/screens/WelcomeScreen';
-import ProblemDescriptionScreen from './components/screens/ProblemDescriptionScreen';
-import ProtocolSelectorScreen from './components/screens/ProtocolSelectorScreen';
-import SimulationScreen from './components/screens/SimulationScreen';
 import { ErrorBoundary } from './components/layout/ErrorBoundary';
+
+// Lazy-loaded heavy screens — only fetched when first rendered
+const ProblemDescriptionScreen = lazy(() => import('./components/screens/ProblemDescriptionScreen'));
+const ProtocolSelectorScreen    = lazy(() => import('./components/screens/ProtocolSelectorScreen'));
+const SimulationScreen          = lazy(() => import('./components/screens/SimulationScreen'));
+
+const ScreenLoader = () => (
+  <div className="flex items-center justify-center min-h-[50vh]">
+    <Loader2 className="w-10 h-10 text-primary animate-spin" />
+  </div>
+);
 
 function App() {
   const [currentStep, setCurrentStep] = useState('welcome');
@@ -26,32 +34,36 @@ function App() {
     }
   }, [isBwMode]);
 
-  const toggleTheme = () => setIsBwMode(!isBwMode);
+  const toggleTheme = useCallback(() => setIsBwMode(v => !v), []);
 
-  const handleProtocolSelect = (protocol) => {
+  const handleProtocolSelect = useCallback((protocol) => {
     setSelectedProtocol(protocol);
     setCurrentStep('loading');
-    
-    // Brief simulated loading to clear states and prepare the Heavy 3D Simulation
-    setTimeout(() => {
-      setCurrentStep('simulation');
-    }, 800);
-  };
+    setTimeout(() => setCurrentStep('simulation'), 800);
+  }, []);
 
   const renderScreen = () => {
     switch (currentStep) {
       case 'welcome':
         return <WelcomeScreen isBwMode={isBwMode} onNext={() => setCurrentStep('problem')} />;
       case 'problem':
-        return <ProblemDescriptionScreen 
-          onNext={() => setCurrentStep('protocol')} 
-          onBack={() => setCurrentStep('welcome')} 
-        />;
+        return (
+          <Suspense fallback={<ScreenLoader />}>
+            <ProblemDescriptionScreen 
+              onNext={() => setCurrentStep('protocol')} 
+              onBack={() => setCurrentStep('welcome')} 
+            />
+          </Suspense>
+        );
       case 'protocol':
-        return <ProtocolSelectorScreen 
-          onSelect={handleProtocolSelect}
-          onBack={() => setCurrentStep('problem')} 
-        />;
+        return (
+          <Suspense fallback={<ScreenLoader />}>
+            <ProtocolSelectorScreen 
+              onSelect={handleProtocolSelect}
+              onBack={() => setCurrentStep('problem')} 
+            />
+          </Suspense>
+        );
       case 'loading':
         return (
           <div className="flex flex-col items-center justify-center min-h-[50vh] text-center space-y-4">
@@ -70,10 +82,12 @@ function App() {
       case 'simulation':
         return (
           <ErrorBoundary onReset={() => setCurrentStep('protocol')}>
-            <SimulationScreen 
-              protocol={selectedProtocol || 'MSI'}
-              onBack={() => setCurrentStep('protocol')} 
-            />
+            <Suspense fallback={<ScreenLoader />}>
+              <SimulationScreen 
+                protocol={selectedProtocol || 'MSI'}
+                onBack={() => setCurrentStep('protocol')} 
+              />
+            </Suspense>
           </ErrorBoundary>
         );
       default:

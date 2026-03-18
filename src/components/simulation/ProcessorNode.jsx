@@ -1,6 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, HardDrive, Play, ChevronDown, Activity, RefreshCw, Edit2, Check } from 'lucide-react';
+
+// Shared helper so every ProcessorNode instance doesn't create its own MutationObserver
+const getIsBwMode = () => document.body.classList.contains('theme-bw');
+const bwListeners = new Set();
+const sharedObserver = new MutationObserver(() => {
+  const val = getIsBwMode();
+  bwListeners.forEach(cb => cb(val));
+});
+sharedObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+const useBwMode = () => {
+  const [isBwMode, setIsBwMode] = useState(getIsBwMode);
+  useEffect(() => {
+    bwListeners.add(setIsBwMode);
+    return () => bwListeners.delete(setIsBwMode);
+  }, []);
+  return isBwMode;
+};
 
 const STATE_COLORS = {
   'M': 'bg-rose-500 text-white border-rose-600',
@@ -16,36 +33,23 @@ const PROTOCOL_STATES = {
   MOESI: ['M', 'O', 'E', 'S', 'I']
 };
 
-export const ProcessorNode = ({ processor, protocol, isActive, onExecute, busMessage }) => {
+export const ProcessorNode = memo(({ processor, protocol, isActive, onExecute, busMessage }) => {
   const [selectedAddr, setSelectedAddr] = useState('0x00');
   const [inputValue, setInputValue] = useState(0);
-  const [isBwMode, setIsBwMode] = useState(false);
+  const isBwMode = useBwMode();
   
   // Inline cache editing state
   const [editingAddr, setEditingAddr] = useState(null);
   const [cacheEditValue, setCacheEditValue] = useState("");
 
-  useEffect(() => {
-    setIsBwMode(document.body.classList.contains('theme-bw'));
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          setIsBwMode(document.body.classList.contains('theme-bw'));
-        }
-      });
-    });
-    observer.observe(document.body, { attributes: true });
-    return () => observer.disconnect();
-  }, []);
-
-  const handleRead = () => {
+  const handleRead = useCallback(() => {
     onExecute(processor.id, 'READ', selectedAddr);
-  };
+  }, [onExecute, processor.id, selectedAddr]);
 
-  const handleWrite = () => {
+  const handleWrite = useCallback(() => {
     onExecute(processor.id, 'WRITE', selectedAddr, inputValue);
-    setInputValue(Math.floor(Math.random() * 100)); // Reset to random input for ease of use
-  };
+    setInputValue(Math.floor(Math.random() * 100));
+  }, [onExecute, processor.id, selectedAddr, inputValue]);
 
   const startInlineEdit = (addr, currentValue) => {
     setEditingAddr(addr);
@@ -232,4 +236,6 @@ export const ProcessorNode = ({ processor, protocol, isActive, onExecute, busMes
       </motion.div>
     </div>
   );
-};
+});
+
+ProcessorNode.displayName = 'ProcessorNode';

@@ -51,7 +51,6 @@ export const SimulationHistory = ({ isOpen, onClose }) => {
             </div>
             <div>
               <h3 className="font-bold text-white tracking-wide">Simulation History</h3>
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Neon PostgreSQL Cloud Records</p>
             </div>
           </div>
           <button 
@@ -67,7 +66,7 @@ export const SimulationHistory = ({ isOpen, onClose }) => {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 space-y-4">
               <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-              <p className="text-slate-400 text-sm animate-pulse">Fetching records from Neon DB...</p>
+              <p className="text-slate-400 text-sm animate-pulse">Fetching records...</p>
             </div>
           ) : error ? (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
@@ -127,7 +126,6 @@ export const SimulationHistory = ({ isOpen, onClose }) => {
         <div className="px-6 py-4 bg-black/20 border-t border-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2 opacity-30">
             <Cloud className="w-4 h-4 text-slate-400" />
-            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Neon PostgreSQL Cloud</span>
           </div>
           <button 
             onClick={fetchHistory}

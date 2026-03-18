@@ -1,7 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
-export const DynamicGraph = ({ stats }) => {
+// Shared observer reuse (same pattern as ProcessorNode)
+const getIsBwMode = () => document.body.classList.contains('theme-bw');
+const bwListeners = new Set();
+const sharedObserver = new MutationObserver(() => {
+  const val = getIsBwMode();
+  bwListeners.forEach(cb => cb(val));
+});
+sharedObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+const useBwMode = () => {
+  const [isBwMode, setIsBwMode] = useState(getIsBwMode);
+  useEffect(() => {
+    bwListeners.add(setIsBwMode);
+    return () => bwListeners.delete(setIsBwMode);
+  }, []);
+  return isBwMode;
+};
+
+export const DynamicGraph = memo(({ stats }) => {
   const [data, setData] = useState([
     { name: 'T0', hits: 0, misses: 1, traffic: 0 },
     { name: 'T1', hits: 1, misses: 2, traffic: 1 },
@@ -12,24 +29,7 @@ export const DynamicGraph = ({ stats }) => {
     { name: 'T6', hits: 3, misses: 1, traffic: 4 },
     { name: 'T7', hits: 5, misses: 0, traffic: 5 }
   ]);
-  const [isBwMode, setIsBwMode] = useState(false);
-
-  useEffect(() => {
-    setIsBwMode(document.body.classList.contains('theme-bw'));
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.attributeName === 'class') {
-          setIsBwMode(document.body.classList.contains('theme-bw'));
-        }
-      });
-    });
-    observer.observe(document.body, { attributes: true });
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    console.log('DynamicGraph render stats:', stats);
-  }, [stats]);
+  const isBwMode = useBwMode();
 
   useEffect(() => {
     setData((prevData) => {
@@ -40,11 +40,7 @@ export const DynamicGraph = ({ stats }) => {
         traffic: stats.busTraffic 
       };
       const newData = [...prevData, newPoint];
-      // Keep last 15 points for visual cleanliness
-      if (newData.length > 15) {
-        return newData.slice(newData.length - 15);
-      }
-      return newData;
+      return newData.length > 15 ? newData.slice(newData.length - 15) : newData;
     });
   }, [stats.hits, stats.misses, stats.busTraffic]);
 
@@ -88,4 +84,6 @@ export const DynamicGraph = ({ stats }) => {
       </ResponsiveContainer>
     </div>
   );
-};
+});
+
+DynamicGraph.displayName = 'DynamicGraph';

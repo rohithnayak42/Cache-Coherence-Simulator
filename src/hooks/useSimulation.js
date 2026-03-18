@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import CoherencyEngine from '../logic/CoherencyEngine';
 
 const INITIAL_MEMORY = {
@@ -43,32 +43,29 @@ export const useSimulation = (protocolType, processorCount = 3) => {
   const activeStats = isSyncNeeded ? { hits: 0, misses: 0, busTraffic: 0, transitions: 0 } : stats;
   const activeMemory = isSyncNeeded ? INITIAL_MEMORY : memory;
 
-  const addLog = (msg) => {
+  const addLog = useCallback((msg) => {
     const logItem = { id: Date.now() + Math.random(), time: new Date().toLocaleTimeString(), message: msg };
     setLogs((prev) => [...prev, logItem]);
     if (engineRef.current) engineRef.current.logs.push(logItem);
-  };
+  }, []);
 
-  const updateMemory = (address, value) => {
+  const updateMemory = useCallback((address, value) => {
     if (engineRef.current) engineRef.current.memory[address] = value;
     setMemory(prev => ({ ...prev, [address]: value }));
     addLog(`Memory modified manually -> Addr: ${address}, Val: ${value}`);
-  };
+  }, [addLog]);
 
-  const executeOperation = (processorId, operationType, address, value = null) => {
+  const executeOperation = useCallback((processorId, operationType, address, value = null) => {
     setBusMessage(null);
     setTimeout(() => {
         const engineResult = engineRef.current.execute(protocolType, processorId, operationType, address, value);
-        
-        // Use returned result object to update existing UI state:
-        // map engine output to existing UI state (event logs, state display, graphs)
         setMemory(engineResult.memorySnapshot);
         setProcessors(engineResult.processorsSnapshot);
         setStats(engineResult.statsSnapshot);
         setBusMessage(engineResult.busMessageSnapshot);
         setLogs([...engineResult.logsSnapshot]);
     }, 50);
-  };
+  }, [protocolType]);
 
   const saveSimulation = async () => {
     try {
@@ -94,7 +91,7 @@ export const useSimulation = (protocolType, processorCount = 3) => {
     }
   };
 
-  const resetSimulation = () => {
+  const resetSimulation = useCallback(() => {
     engineRef.current.reset();
     setMemory(INITIAL_MEMORY);
     setProcessors(getInitialProcessors(processorCount));
@@ -102,7 +99,7 @@ export const useSimulation = (protocolType, processorCount = 3) => {
     setBusMessage(null);
     setStats({ hits: 0, misses: 0, busTraffic: 0, transitions: 0 });
     addLog('Simulation reset.');
-  };
+  }, [processorCount, addLog]);
 
   return {
     memory: activeMemory,

@@ -9,14 +9,21 @@ const VisualBackground = ({ isBwMode }) => {
   const canvasRef = useRef(null);
   const mouseRef = useRef({ x: 0, y: 0 });
   const themeRef = useRef(isBwMode);
+  const rafPendingRef = useRef(false);
 
   // Keep themeRef in sync without re-creating the canvas animation
   useEffect(() => {
     themeRef.current = isBwMode;
   }, [isBwMode]);
 
+  // Throttle via RAF so the mouse handler fires at most once per frame
   const handleMouseMove = useCallback((e) => {
-    mouseRef.current = { x: e.clientX, y: e.clientY };
+    if (rafPendingRef.current) return;
+    rafPendingRef.current = true;
+    requestAnimationFrame(() => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+      rafPendingRef.current = false;
+    });
   }, []);
 
   useEffect(() => {
