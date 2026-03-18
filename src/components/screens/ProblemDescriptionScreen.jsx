@@ -58,11 +58,11 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
   ];
 
   // Helper classes depending on Theme mode
-  const surfaceClass = isBwMode ? "bg-[#050505] border-white/20" : "bg-surface/60 border-white/10";
-  const primaryText = isBwMode ? "text-white" : "text-primary";
-  const errorBadgeClass = isBwMode ? "bg-white text-black" : "bg-rose-500 text-white";
-  const errorTextClass = isBwMode ? "text-white font-bold" : "text-rose-400 font-bold";
-  const highlightClass = isBwMode ? "text-white font-bold underline" : "text-emerald-400 font-bold";
+  const surfaceClass = isBwMode ? "bg-white/80 border-blue-200/50 shadow-blue-500/5" : "bg-surface/60 border-white/10";
+  const primaryText = isBwMode ? "text-blue-700" : "text-primary";
+  const errorBadgeClass = isBwMode ? "bg-rose-600 text-white" : "bg-rose-500 text-white";
+  const errorTextClass = isBwMode ? "text-rose-600 font-bold" : "text-rose-400 font-bold";
+  const highlightClass = isBwMode ? "text-blue-600 font-bold underline" : "text-emerald-400 font-bold";
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-start py-8 relative">
@@ -119,10 +119,10 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full text-center mb-6"
       >
-        <h2 className={`text-3xl lg:text-4xl font-extrabold mb-3 tracking-tight ${isBwMode ? 'text-white' : 'text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-400'}`}>
+        <h2 className={`text-3xl lg:text-4xl font-extrabold mb-3 tracking-tight ${isBwMode ? 'text-slate-900' : 'text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-400'}`}>
           Simulation Flow: The Coherence Problem
         </h2>
-        <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+        <p className={`text-lg max-w-2xl mx-auto ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
           Follow the step-by-step example below to understand how data inconsistencies occur in multiprocessor systems.
         </p>
       </motion.div>
@@ -184,13 +184,13 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
           {/* Main Memory Node */}
           <motion.div 
             animate={{ y: step === 4 ? [-5, 5, 0] : 0 }}
-            className={`w-72 p-4 rounded-xl flex flex-col items-center justify-center relative z-10 shadow-3d ${isBwMode ? 'bg-[#1a1a1a] border-2 border-[#444]' : 'bg-slate-800 border-2 border-slate-600'}`}
+            className={`w-72 p-4 rounded-xl flex flex-col items-center justify-center relative z-10 shadow-3d ${isBwMode ? 'bg-white border-2 border-blue-200 shadow-blue-500/10' : 'bg-slate-800 border-2 border-slate-600'}`}
           >
-            <div className={`absolute -top-4 px-3 py-1 rounded bg-black border ${isBwMode ? 'border-white text-white' : 'border-slate-500 text-slate-300'} text-xs font-bold uppercase tracking-wider`}>
+            <div className={`absolute -top-4 px-3 py-1 rounded border ${isBwMode ? 'bg-blue-600 border-blue-400 text-white' : 'bg-black border-slate-500 text-slate-300'} text-xs font-bold uppercase tracking-wider`}>
               Main Memory
             </div>
             
-            <div className={`mt-2 w-full px-4 py-3 rounded-lg font-mono text-center transition-colors duration-500 ${step >= 4 ? (isBwMode ? 'bg-white text-black font-bold' : 'bg-emerald-900/50 text-emerald-400 border border-emerald-500/50') : 'bg-black/50 text-slate-300'}`}>
+            <div className={`mt-2 w-full px-4 py-3 rounded-lg font-mono text-center transition-colors duration-500 ${step >= 4 ? (isBwMode ? 'bg-emerald-100 text-emerald-700 font-bold border border-emerald-200' : 'bg-emerald-900/50 text-emerald-400 border border-emerald-500/50') : (isBwMode ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'bg-black/50 text-slate-300')}`}>
               Address X = {step >= 4 ? '15' : '10'}
             </div>
             {step === 3 && (
@@ -213,20 +213,20 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
               <motion.div 
                 className={`w-full p-4 rounded-xl flex flex-col items-center shadow-3d transition-colors duration-500 ${
                   isBwMode 
-                    ? `border-2 ${step >= 1 ? 'border-white' : 'border-[#333]'} bg-[#1a1a1a]`
+                    ? `border-2 ${step >= 1 ? 'border-blue-400' : 'border-blue-100'} bg-white shadow-blue-500/5`
                     : `border-2 ${step >= 1 ? 'border-primary/80 bg-slate-800' : 'border-slate-700 bg-slate-800'}`
                 }`}
                 animate={step === 1 || step === 2 ? { y: -5 } : { y: 0 }}
               >
-                <span className={`font-bold mb-3 flex items-center gap-2 ${step >= 1 ? (isBwMode ? 'text-white' : 'text-primary') : 'text-slate-400'}`}>
+                <span className={`font-bold mb-3 flex items-center gap-2 ${step >= 1 ? (isBwMode ? 'text-blue-700' : 'text-primary') : (isBwMode ? 'text-slate-400' : 'text-slate-400')}`}>
                   <Share2 size={18} /> Core A
                 </span>
                 
-                <div className={`w-full p-3 rounded text-center font-mono text-sm transition-all duration-300 ${step >= 1 ? 'bg-black/60' : 'bg-black/30'}`}>
-                   {step === 0 && <span className="text-slate-600">Empty</span>}
-                   {step === 1 && <span className={isBwMode ? "text-white" : "text-blue-300"}>X: 10</span>}
+                <div className={`w-full p-3 rounded text-center font-mono text-sm transition-all duration-300 ${step >= 1 ? (isBwMode ? 'bg-blue-50/50' : 'bg-black/60') : (isBwMode ? 'bg-slate-50/50' : 'bg-black/30')}`}>
+                   {step === 0 && <span className={isBwMode ? "text-slate-400" : "text-slate-600"}>Empty</span>}
+                   {step === 1 && <span className={isBwMode ? "text-blue-600 font-bold" : "text-blue-300"}>X: 10</span>}
                    {step >= 2 && (
-                     <span>
+                     <span className={isBwMode ? "text-slate-700" : "text-slate-200"}>
                        X: <span className="line-through opacity-50 mr-1">10</span> 
                        <span className={highlightClass}>15</span>
                      </span>
@@ -254,7 +254,7 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
               <motion.div 
                 className={`w-full p-4 rounded-xl flex flex-col items-center shadow-3d transition-colors duration-500 ${
                   isBwMode 
-                    ? `border-2 ${step === 3 ? 'border-white bg-[#000000]' : (step >= 4 ? 'border-white bg-[#1a1a1a]' : 'border-[#333] bg-[#1a1a1a]')}`
+                    ? `border-2 ${step === 3 ? 'border-rose-500 bg-rose-50' : (step >= 4 ? 'border-emerald-500 bg-emerald-50' : 'border-blue-100 bg-white')}`
                     : `border-2 ${step === 3 ? 'border-rose-500/80 bg-rose-950/40' : (step >= 4 ? 'border-emerald-500/50 bg-slate-800' : 'border-slate-700 bg-slate-800')}`
                 }`}
                 animate={step === 3 ? { x: [-5, 5, -5, 5, 0] } : { x: 0 }}
@@ -262,14 +262,14 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
               >
                 <span className={`font-bold mb-3 flex items-center gap-2 ${
                   isBwMode 
-                    ? (step === 3 ? 'text-white underline' : (step >= 4 ? 'text-white' : 'text-slate-500'))
+                    ? (step === 3 ? 'text-rose-600 underline' : (step >= 4 ? 'text-emerald-600' : 'text-slate-400'))
                     : (step === 3 ? 'text-rose-400' : (step >= 4 ? 'text-emerald-400' : 'text-slate-400'))
                 }`}>
                   <MonitorDown size={18} /> Core B
                 </span>
                 
-                <div className="w-full bg-black/50 p-3 rounded text-center font-mono text-sm">
-                   {step < 3 && <span className="text-slate-600">Empty</span>}
+                <div className={`w-full p-3 rounded text-center font-mono text-sm ${isBwMode ? 'bg-slate-50/80' : 'bg-black/50'}`}>
+                   {step < 3 && <span className={isBwMode ? "text-slate-300" : "text-slate-600"}>Empty</span>}
                    {step === 3 && <span className={errorTextClass}>X: 10</span>}
                    {step >= 4 && <span className={highlightClass}>X: 15</span>}
                 </div>
@@ -299,12 +299,12 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
         
         <div className="flex-1 flex flex-col">
           <div className="flex items-center gap-3 mb-2">
-            <span className={`text-xs font-bold px-2 py-1 rounded ${isBwMode ? 'bg-white text-black' : 'bg-primary/20 text-primary border border-primary/30'}`}>
+            <span className={`text-xs font-bold px-2 py-1 rounded ${isBwMode ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-primary/20 text-primary border border-primary/30'}`}>
               Step {step + 1} of 5
             </span>
-            <h3 className="text-xl font-bold text-white">{stepConfigs[step].title}</h3>
+            <h3 className={`text-xl font-bold ${isBwMode ? 'text-slate-900' : 'text-white'}`}>{stepConfigs[step].title}</h3>
           </div>
-          <p className="text-slate-400 text-sm leading-relaxed min-h-[40px]">
+          <p className={`text-sm leading-relaxed min-h-[40px] ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
             {stepConfigs[step].description}
           </p>
         </div>
@@ -353,15 +353,15 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.5, ease: "easeOut" }}
             className={`w-full max-w-5xl rounded-2xl mb-8 overflow-hidden shadow-3d border ${
-              isBwMode ? 'bg-[#111] border-white/40' : 'bg-red-950/20 border-rose-500/30'
+              isBwMode ? 'bg-white border-blue-200' : 'bg-red-950/20 border-rose-500/30'
             }`}
           >
             {/* Header */}
             <div className={`p-4 border-b flex items-center gap-3 ${
-              isBwMode ? 'bg-white text-black border-white/20' : 'bg-rose-500/10 border-rose-500/20'
+              isBwMode ? 'bg-blue-600 text-white border-blue-600' : 'bg-rose-500/10 border-rose-500/20'
             }`}>
-               <AlertOctagon className={`w-6 h-6 ${isBwMode ? 'text-black' : 'text-rose-500'}`} />
-               <h3 className={`text-xl font-bold tracking-wide ${isBwMode ? 'text-black' : 'text-rose-400'}`}>
+               <AlertOctagon className={`w-6 h-6 ${isBwMode ? 'text-white' : 'text-rose-500'}`} />
+               <h3 className={`text-xl font-bold tracking-wide ${isBwMode ? 'text-white' : 'text-rose-400'}`}>
                  Cache Coherence Error Explained
                </h3>
             </div>
@@ -372,25 +372,25 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
               {/* Left Column */}
               <div className="space-y-6">
                 <div>
-                  <h4 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-white' : 'text-slate-200'}`}>
-                    <AlertTriangle className={`w-5 h-5 ${isBwMode ? 'text-white' : 'text-rose-400'}`} />
+                  <h4 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-slate-900' : 'text-slate-200'}`}>
+                    <AlertTriangle className={`w-5 h-5 ${isBwMode ? 'text-rose-600' : 'text-rose-400'}`} />
                     What is the Error?
                   </h4>
-                  <p className="text-sm text-slate-400 leading-relaxed">
+                  <p className={`text-sm leading-relaxed ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
                     A cache coherence error occurs when multiple processors have <strong>inconsistent copies of the same memory data</strong>. As you can see above, Core A updated the value of X to 15, but Core B is completely unaware and continues to use the old, <strong>stale value</strong> of 10.
                   </p>
                 </div>
                 
                 <div>
-                  <h4 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-white' : 'text-slate-200'}`}>
-                    <Zap className={`w-5 h-5 ${isBwMode ? 'text-white' : 'text-amber-400'}`} />
+                  <h4 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-slate-900' : 'text-slate-200'}`}>
+                    <Zap className={`w-5 h-5 ${isBwMode ? 'text-amber-600' : 'text-amber-400'}`} />
                     How It Occurs
                   </h4>
-                  <ol className="text-sm text-slate-400 list-decimal list-inside space-y-1">
+                  <ol className={`text-sm list-decimal list-inside space-y-1 ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
                     <li>Core A reads data from Main Memory.</li>
                     <li>Core A modifies the value locally in its private L1 Cache.</li>
                     <li>Core B reads the same data from Main Memory.</li>
-                    <li><span className={isBwMode ? "font-bold text-white underline" : "text-rose-400 font-bold"}>Core B receives stale data</span>, causing inconsistency.</li>
+                    <li><span className={isBwMode ? "font-bold text-rose-600 underline" : "text-rose-400 font-bold"}>Core B receives stale data</span>, causing inconsistency.</li>
                   </ol>
                 </div>
               </div>
@@ -398,23 +398,23 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
               {/* Right Column */}
               <div className="space-y-6">
                 <div>
-                  <h4 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-white' : 'text-slate-200'}`}>
-                    <ShieldAlert className={`w-5 h-5 ${isBwMode ? 'text-white' : 'text-rose-400'}`} />
+                  <h4 className={`text-lg font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-slate-900' : 'text-slate-200'}`}>
+                    <ShieldAlert className={`w-5 h-5 ${isBwMode ? 'text-rose-600' : 'text-rose-400'}`} />
                     Why This is a Problem (Risks)
                   </h4>
-                  <ul className="text-sm text-slate-400 list-disc list-inside space-y-1">
+                  <ul className={`text-sm list-disc list-inside space-y-1 ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
                     <li><strong>Incorrect Program Execution:</strong> Logic based on stale data fails.</li>
                     <li><strong>System Instability:</strong> Threads crash due to out-of-sync states.</li>
                     <li><strong>Silent Failures:</strong> These bugs are notoriously difficult to track down and debug in parallel systems.</li>
                   </ul>
                 </div>
 
-                <div className={`p-4 rounded-xl border ${isBwMode ? 'bg-[#222] border-[#444]' : 'bg-black/30 border-white/5'}`}>
-                  <h4 className={`text-md font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-white' : 'text-emerald-400'}`}>
+                <div className={`p-4 rounded-xl border ${isBwMode ? 'bg-blue-50 border-blue-200' : 'bg-black/30 border-white/5'}`}>
+                  <h4 className={`text-md font-bold mb-2 flex items-center gap-2 ${isBwMode ? 'text-blue-700' : 'text-emerald-400'}`}>
                     <CheckCircle className="w-5 h-5" />
                     Why It Must Be Solved
                   </h4>
-                  <p className="text-sm text-slate-400 leading-relaxed">
+                  <p className={`text-sm leading-relaxed ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
                     A multi-core system must ensure all processors see the exact same data to maintain correctness. This simulator demonstrates how hardware protocols (like <strong>MSI, MESI, and MOESI</strong>) automatically solve this problem by snooping the bus and updating or invalidating caches instantly.
                   </p>
                 </div>

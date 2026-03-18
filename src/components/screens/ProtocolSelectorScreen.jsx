@@ -58,7 +58,7 @@ const protocols = [
 
 // Helper to draw an animated interconnected grid
 const AnimatedBackgroundGrid = ({ isBwMode }) => {
-  if (isBwMode) return null; // Keep B&W mode strictly clean without distractions
+  // Now enabled for both modes to meet the "particles / grid / lines" requirement in BOTH themes
   
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none opacity-30">
@@ -67,7 +67,7 @@ const AnimatedBackgroundGrid = ({ isBwMode }) => {
         className="absolute inset-0 w-full h-[200%] -top-[50%] left-0"
         style={{
           backgroundSize: '80px 80px',
-          backgroundImage: 'linear-gradient(to right, rgba(59, 130, 246, 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 130, 246, 0.1) 1px, transparent 1px)',
+          backgroundImage: `linear-gradient(to right, ${isBwMode ? 'rgba(37, 99, 235, 0.05)' : 'rgba(59, 130, 246, 0.1)'} 1px, transparent 1px), linear-gradient(to bottom, ${isBwMode ? 'rgba(37, 99, 235, 0.05)' : 'rgba(59, 130, 246, 0.1)'} 1px, transparent 1px)`,
           transform: 'perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px)',
           animation: 'gridMove 20s linear infinite'
         }}
@@ -140,10 +140,10 @@ const ProtocolSelectorScreen = ({ onSelect, onBack }) => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full text-center mb-10 relative z-20"
       >
-        <h2 className={`text-4xl lg:text-5xl font-extrabold mb-4 tracking-tight drop-shadow-lg ${isBwMode ? 'text-white' : 'text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400'}`}>
+        <h2 className={`text-4xl lg:text-5xl font-extrabold mb-4 tracking-tight drop-shadow-lg ${isBwMode ? 'text-slate-900' : 'text-transparent bg-clip-text bg-gradient-to-r from-slate-200 to-slate-400'}`}>
           Select a Protocol
         </h2>
-        <p className={`text-lg max-w-2xl mx-auto ${isBwMode ? 'text-slate-300' : 'text-slate-400'}`}>
+        <p className={`text-lg max-w-2xl mx-auto ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
           Choose an architecture to simulate. MSI is great for basics, while MESI and MOESI represent real-world optimizations.
         </p>
       </motion.div>
@@ -165,7 +165,7 @@ const ProtocolSelectorScreen = ({ onSelect, onBack }) => {
               className={`
                 relative flex flex-col rounded-3xl border transition-all duration-500 cursor-pointer overflow-hidden shadow-3d
                 ${isBwMode 
-                  ? (isHovered ? 'bg-[#111] border-white -translate-y-3' : 'bg-[#050505] border-[#333]')
+                  ? (isHovered ? 'bg-white border-blue-400 -translate-y-3 shadow-blue-500/10' : 'bg-white/80 border-blue-100 shadow-blue-500/5')
                   : (isHovered ? `bg-surface/90 border-${protocol.color.split('-')[1]}-500/50 -translate-y-3 ${protocol.hoverShadow}` : 'bg-surface/60 border-white/5')
                 }
                 backdrop-blur-md
@@ -176,27 +176,27 @@ const ProtocolSelectorScreen = ({ onSelect, onBack }) => {
               <div className="p-8 flex-grow flex flex-col relative z-10">
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex items-center gap-4">
-                    <div className={`p-4 rounded-xl transition-colors duration-300 ${isBwMode ? (isHovered ? 'bg-white text-black' : 'border border-[#444] text-white') : `${protocol.bg} border ${protocol.border}`}`}>
+                    <div className={`p-4 rounded-xl transition-colors duration-300 ${isBwMode ? (isHovered ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-blue-50 border border-blue-100 text-blue-600') : `${protocol.bg} border ${protocol.border}`}`}>
                       <protocol.icon className={`w-8 h-8 ${isBwMode ? '' : protocol.color}`} />
                     </div>
                     <div>
-                      <h3 className="text-3xl font-extrabold text-white tracking-tight">{protocol.name}</h3>
-                      <p className={`text-xs font-bold tracking-widest uppercase mt-1 ${isBwMode ? 'text-slate-400' : protocol.color}`}>
+                      <h3 className={`text-3xl font-extrabold tracking-tight ${isBwMode ? 'text-slate-900' : 'text-white'}`}>{protocol.name}</h3>
+                      <p className={`text-xs font-bold tracking-widest uppercase mt-1 ${isBwMode ? (isHovered ? 'text-blue-500' : 'text-slate-400') : protocol.color}`}>
                         Status Model
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <p className={`text-sm md:text-base leading-relaxed mb-8 flex-grow ${isBwMode ? 'text-slate-300' : 'text-slate-400'}`}>
+                <p className={`text-sm md:text-base leading-relaxed mb-8 flex-grow ${isBwMode ? 'text-slate-600' : 'text-slate-400'}`}>
                   {protocol.description}
                 </p>
 
                 <div className="space-y-2 mb-8 flex-grow">
                   {protocol.states.map((state, sIdx) => (
-                    <div key={sIdx} className={`flex flex-col gap-1 p-3 rounded-xl transition-colors duration-300 ${isBwMode ? 'bg-[#1a1a1a] border border-[#333]' : 'bg-black/40 border border-white/5'}`}>
-                      <span className="font-bold text-white text-sm">{state.name}</span>
-                      <span className="text-xs text-slate-500 leading-snug">{state.desc}</span>
+                    <div key={sIdx} className={`flex flex-col gap-1 p-3 rounded-xl transition-colors duration-300 ${isBwMode ? 'bg-blue-50/50 border border-blue-100/50' : 'bg-black/40 border border-white/5'}`}>
+                      <span className={`font-bold text-sm ${isBwMode ? 'text-slate-800' : 'text-white'}`}>{state.name}</span>
+                      <span className={`text-xs leading-snug ${isBwMode ? 'text-slate-500' : 'text-slate-500'}`}>{state.desc}</span>
                     </div>
                   ))}
                 </div>
@@ -204,8 +204,8 @@ const ProtocolSelectorScreen = ({ onSelect, onBack }) => {
                 <button 
                   className={`
                     mt-auto flex w-full items-center justify-center gap-2 py-4 rounded-xl font-bold transition-all duration-300 transform active:scale-95
-                    ${isBwMode
-                      ? (isHovered ? 'bg-white text-black' : 'bg-[#222] text-white hover:bg-[#333]')
+                   ${isBwMode
+                      ? (isHovered ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'bg-blue-50 text-blue-700 hover:bg-blue-100')
                       : (isHovered ? `bg-primary text-white shadow-lg` : 'bg-white/5 text-slate-300 hover:bg-white/10')
                     }
                   `}

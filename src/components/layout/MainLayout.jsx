@@ -1,17 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Cpu, Moon, Sun } from 'lucide-react';
+import VisualBackground from './VisualBackground';
 
 const MainLayout = ({ children, isFullScreen = false, hideShell = false, isBwMode, onThemeToggle }) => {
 
   return (
-    <div className="min-h-screen flex flex-col w-full relative overflow-hidden bg-background text-slate-200 transition-colors duration-500">
-      {/* Abstract Background Elements (Hidden in B&W Mode) */}
-      {!isBwMode && (
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none transition-opacity duration-500">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-primary/20 blur-[120px]" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-secondary/15 blur-[150px]" />
-        </div>
-      )}
+    <div className={`min-h-screen flex flex-col w-full relative overflow-hidden bg-background ${isBwMode ? 'text-slate-800' : 'text-slate-200'} transition-colors duration-500`}>
+      {/* Global Animated Background */}
+      <VisualBackground isBwMode={isBwMode} />
 
       {!hideShell && (
         <header className="w-full z-10 px-8 py-4 flex items-center justify-between border-b border-white/5 glass-panel select-none">

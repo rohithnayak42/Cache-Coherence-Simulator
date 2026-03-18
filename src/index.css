@@ -10,6 +10,7 @@
   --color-primary: #3b82f6;
   --color-secondary: #8b5cf6;
   --color-accent: #10b981;
+  --color-text: #f1f5f9;
   --font-sans: "Inter", sans-serif;
 }
 
@@ -20,14 +21,14 @@
     @apply antialiased transition-colors duration-500 ease-in-out;
   }
   
-  /* Black & White Theme Override */
+  /* Modern Light Theme Override (using the .theme-bw class name for compatibility) */
   .theme-bw {
-    --color-background: #000000;
-    --color-surface: #0a0a0a;
-    --color-primary: #ffffff;
-    --color-secondary: #ffffff;
-    --color-accent: #ffffff;
-    --color-text: #ffffff;
+    --color-background: #eff6ff;
+    --color-surface: #ffffff;
+    --color-primary: #2563eb;
+    --color-secondary: #7c3aed;
+    --color-accent: #059669;
+    --color-text: #0f172a;
   }
 }
 
