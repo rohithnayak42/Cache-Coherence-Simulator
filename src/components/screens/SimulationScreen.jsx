@@ -109,41 +109,51 @@ const SimulationScreen = ({ protocol, onBack }) => {
     <>
       <div className="w-full min-h-screen bg-background flex flex-col pt-8 pb-16 px-4 md:px-8 xl:px-16 overflow-y-auto">
       {/* --- TOP SECTION: Header --- */}
-      <div className="flex items-center justify-between mb-8 shrink-0 bg-surface/80 border border-white/10 p-5 rounded-2xl shadow-lg relative z-20 w-full max-w-[1400px] mx-auto">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-lg"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Change Protocol
-        </button>
+      <div className="flex flex-col gap-6 mb-8 shrink-0 bg-surface/80 border border-white/10 p-6 rounded-2xl shadow-lg relative z-20 w-full max-w-[1400px] mx-auto">
+        
+        {/* Protocol Mode Highlight (Centered Top) */}
+        <div className="flex justify-center">
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="px-8 py-3 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center gap-4 shadow-[0_0_25px_rgba(59,130,246,0.25)] w-full sm:w-auto"
+          >
+            <span className="w-4 h-4 rounded-full bg-primary animate-pulse shadow-[0_0_15px_#3b82f6]" />
+            <span className="font-extrabold text-white tracking-[0.2em] text-xl md:text-2xl">{protocol} MODE</span>
+          </motion.div>
+        </div>
 
-        <div className="flex items-center gap-6">
-          <div className="px-6 py-2.5 bg-primary/20 border border-primary/30 rounded-xl flex items-center gap-3 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
-            <span className="w-3 h-3 rounded-full bg-primary animate-pulse shadow-[0_0_12px_#3b82f6]" />
-            <span className="font-extrabold text-white tracking-widest text-lg">{protocol} MODE</span>
-          </div>
-          <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 shadow-inner">
+        {/* Controls Row (Adaptive Flex) */}
+        <div className="flex flex-wrap items-center justify-between gap-6 border-t border-white/5 pt-5">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-lg"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Change Protocol
+          </button>
+
+          <div className="flex flex-wrap justify-center bg-black/40 p-1 rounded-xl border border-white/5 shadow-inner">
             {[2, 3, 4].map((count) => (
-               <button
-                 key={count}
-                 onClick={() => {
-                   setProcessorCount(count);
-                   setHasRunDemo(false);
-                   setIsManualMode(true);
-                 }}
-                 className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${
-                   processorCount === count 
-                     ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30' 
-                     : 'text-slate-400 hover:text-white hover:bg-white/10'
-                 }`}
-               >
-                 {count} Cores
-               </button>
+              <button
+                key={count}
+                onClick={() => {
+                  setProcessorCount(count);
+                  setHasRunDemo(false);
+                  setIsManualMode(true);
+                }}
+                className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${
+                  processorCount === count 
+                    ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30' 
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {count} Cores
+              </button>
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap justify-center items-center gap-2">
             <button
               onClick={() => setShowHistory(true)}
               className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition-all border border-white/5 text-sm font-bold"
@@ -187,7 +197,7 @@ const SimulationScreen = ({ protocol, onBack }) => {
       <div className="w-full max-w-[1400px] mx-auto flex flex-col gap-10">
         
         {/* --- MIDDLE SECTION: Main Simulation Area (Memory + Processors) --- */}
-        <div className="w-full flex flex-col relative bg-surface/40 border border-white/5 rounded-3xl p-10 shadow-2xl overflow-hidden min-h-[700px]">
+        <div className="w-full flex flex-col relative bg-surface/40 border border-white/5 rounded-3xl p-4 sm:p-6 lg:p-10 shadow-2xl overflow-hidden min-h-[500px] lg:min-h-[700px]">
           
           {/* Animated 3D Arc Overlay for Data Transfers */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: 'visible' }}>
@@ -248,7 +258,7 @@ const SimulationScreen = ({ protocol, onBack }) => {
                    animate={{ opacity: 1, scale: 1 }}
                    exit={{ opacity: 0, scale: 0.8 }}
                    key={busMessage.type + Date.now()}
-                   className="px-8 py-3 bg-indigo-600/95 backdrop-blur-md border border-indigo-400 text-white font-bold rounded-2xl shadow-[0_10px_30px_rgba(79,70,229,0.5)] flex items-center gap-4"
+                   className="px-4 sm:px-8 py-3 bg-indigo-600/95 backdrop-blur-md border border-indigo-400 text-white font-bold rounded-2xl shadow-[0_10px_30px_rgba(79,70,229,0.5)] flex flex-col sm:flex-row text-center sm:text-left items-center gap-2 sm:gap-4"
                  >
                    <div className="p-1.5 bg-indigo-500/50 rounded-full">
                      <AlertCircle className="w-5 h-5 text-white" />
@@ -266,7 +276,7 @@ const SimulationScreen = ({ protocol, onBack }) => {
 
 
           {/* Processors Grid (Dynamically sizing to match active core count) */}
-          <div className={`w-full grid grid-cols-1 lg:grid-cols-${processorCount} gap-6 lg:gap-8 mt-auto relative z-10 items-end`}>
+          <div className={`w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${processorCount} gap-4 sm:gap-6 lg:gap-8 mt-auto relative z-10 items-end`}>
             {processors.map((p) => (
               <ProcessorNode 
                 key={p.id} 
@@ -287,7 +297,7 @@ const SimulationScreen = ({ protocol, onBack }) => {
         <div className="w-full flex flex-col gap-8">
            
            {/* Row 1: Real-Time Dynamic Graph */}
-           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-8 shadow-xl h-[400px] flex flex-col shrink-0">
+           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl h-[400px] flex flex-col shrink-0">
              <div className="flex items-center gap-3 mb-6 text-white font-bold text-2xl shrink-0">
                <Activity className="w-7 h-7 text-emerald-400" /> Live Simulation Graph
              </div>
@@ -297,13 +307,13 @@ const SimulationScreen = ({ protocol, onBack }) => {
            </div>
 
            {/* Row 2: Real-time Stats Grid */}
-           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-8 shadow-xl">
+           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl">
              <div className="flex items-center gap-3 mb-6 text-white font-bold text-2xl">
                <BarChart3 className="w-7 h-7 text-primary" /> System Metrics
              </div>
              
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-               <div className="bg-black/40 p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+               <div className="bg-black/40 p-4 sm:p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
                  <div className="text-sm text-slate-400 mb-2 font-bold uppercase tracking-widest">Cache Hits</div>
                  <div className="text-5xl font-mono text-emerald-400 font-extrabold drop-shadow-[0_0_12px_rgba(16,185,129,0.4)]">{stats.hits}</div>
                </div>
@@ -324,18 +334,18 @@ const SimulationScreen = ({ protocol, onBack }) => {
 
            {/* Row 3: Event Log Array */}
            <div className="w-full bg-surface/80 border border-white/10 rounded-3xl flex flex-col shadow-xl overflow-hidden h-[400px]">
-             <div className="flex items-center justify-between p-6 border-b border-white/10 bg-black/20">
-               <div className="flex items-center gap-3 text-white font-bold text-2xl">
-                 <Info className="w-7 h-7 text-secondary" /> Event Log
+             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-6 border-b border-white/10 bg-black/20">
+               <div className="flex items-center gap-3 text-white font-bold text-xl sm:text-2xl">
+                 <Info className="w-6 h-6 sm:w-7 sm:h-7 text-secondary" /> Event Log
                </div>
-               <span className="text-sm font-mono text-slate-400 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+               <span className="text-xs sm:text-sm font-mono text-slate-400 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 text-center">
                  {logs.length} events recorded
                </span>
              </div>
              
              <div 
                ref={logsContainerRef}
-               className="flex-grow overflow-y-auto p-6 space-y-4 font-mono text-base scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-black/10"
+               className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 font-mono text-sm sm:text-base scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-black/10"
              >
                {logs.length === 0 ? (
                  <div className="h-full flex flex-col items-center justify-center text-slate-500 italic">

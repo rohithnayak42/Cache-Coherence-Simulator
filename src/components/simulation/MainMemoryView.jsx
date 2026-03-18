@@ -55,7 +55,7 @@ export const MainMemoryView = ({ memory, busMessage, updateMemory }) => {
           <span className="text-xs text-slate-500 font-mono tracking-wider italic pr-2">Click edit icon to override</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {Object.entries(memory).map(([address, value]) => {
             const isActive = busMessage && busMessage.address === address;
             const isEditing = editingAddr === address;
@@ -77,7 +77,7 @@ export const MainMemoryView = ({ memory, busMessage, updateMemory }) => {
                   <span className="font-bold">{address}</span>
                 </div>
                 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2">
                   <span className={`text-xs ${isBwMode ? 'text-slate-400' : 'text-slate-500'}`}>Val</span>
                   
                   {isEditing ? (

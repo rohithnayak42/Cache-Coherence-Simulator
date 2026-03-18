@@ -186,8 +186,8 @@ export const ProcessorNode = ({ processor, protocol, isActive, onExecute, busMes
 
         {/* Action Controls */}
         <div className={`p-4 rounded-xl border ${isBwMode ? 'bg-[#000] border-[#333]' : 'bg-black/30 border-white/5'}`}>
-          <div className="flex gap-2 mb-3">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap sm:flex-nowrap gap-2 mb-3">
+            <div className="relative flex-1 min-w-[80px]">
               <select 
                 value={selectedAddr}
                 onChange={(e) => setSelectedAddr(e.target.value)}
@@ -205,7 +205,7 @@ export const ProcessorNode = ({ processor, protocol, isActive, onExecute, busMes
               type="number" 
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              className={`w-20 rounded-lg px-3 py-2 text-sm text-center font-mono focus:outline-none focus:ring-2 
+              className={`w-full sm:w-20 flex-shrink-0 rounded-lg px-3 py-2 text-sm text-center font-mono focus:outline-none focus:ring-2 
                   ${isBwMode ? 'bg-[#222] text-white border border-[#444] focus:ring-white' : 'bg-surface border border-white/10 text-white focus:ring-primary/50'}`}
               placeholder="Val"
             />

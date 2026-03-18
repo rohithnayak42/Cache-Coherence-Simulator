@@ -68,7 +68,7 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
     <div className="w-full h-full flex flex-col items-center justify-start py-8 relative">
       
       {/* Top Navigation */}
-      <div className="w-full flex justify-start mb-6 px-4">
+      <div className="w-full flex justify-between items-center mb-6 px-4">
         <button
           onClick={onBack}
           className="flex items-center gap-2 px-4 py-2 rounded-lg text-slate-400 hover:text-white transition-colors"
@@ -76,6 +76,42 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
           <ArrowLeft className="w-5 h-5" />
           <span className="font-medium text-sm">Back</span>
         </button>
+
+        <AnimatePresence>
+          <motion.button
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            whileHover="hover"
+            whileTap="tap"
+            transition={{ duration: 0.4 }}
+            onClick={onNext}
+            title="Skip demo and go directly to protocol simulation"
+            className={`group flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 shadow-lg ${
+              isBwMode 
+                ? 'bg-white text-black hover:bg-gray-200 shadow-white/10' 
+                : 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 animate-shine text-white shadow-[0_0_20px_rgba(59,130,246,0.5)] border border-blue-400/30'
+            }`}
+          >
+            <motion.span 
+              variants={{
+                hover: { scale: 1.05 },
+                tap: { scale: 0.95 }
+              }}
+            >
+              Skip to Protocol
+            </motion.span>
+            <motion.span
+              variants={{
+                hover: { x: 4 },
+                initial: { x: 0 }
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
+              <ArrowRight className="w-4 h-4" />
+            </motion.span>
+          </motion.button>
+        </AnimatePresence>
       </div>
 
       <motion.div
@@ -273,7 +309,8 @@ const ProblemDescriptionScreen = ({ onNext, onBack }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center justify-center gap-3 shrink-0">
+          
           <button
             onClick={prevStep}
             disabled={step === 0}
