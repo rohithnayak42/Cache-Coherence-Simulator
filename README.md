@@ -93,16 +93,4 @@ An interactive, educational simulator designed to visualize and analyze **Cache 
 
 ---
 
-## 🤝 Contributing
 
-Contributions are welcome! Feel free to open an issue or submit a pull request if you'd like to improve the simulation logic, add new protocols, or enhance the UI.
-
----
-
-## 📜 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
-
----
-
-*Built with ❤️ for COA Students.*
