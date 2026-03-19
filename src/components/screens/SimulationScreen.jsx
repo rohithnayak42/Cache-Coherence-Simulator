@@ -1,386 +1,340 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ProcessorNode } from '../simulation/ProcessorNode';
 import { MainMemoryView } from '../simulation/MainMemoryView';
 import { DynamicGraph } from '../simulation/DynamicGraph';
 import { SimulationHistory } from '../simulation/SimulationHistory';
 import { useSimulation } from '../../hooks/useSimulation';
-import { ArrowLeft, RotateCcw, AlertCircle, BarChart3, Info, Activity, Save, History as HistoryIcon, Cloud } from 'lucide-react';
+import {
+  ArrowLeft, RotateCcw, AlertCircle, BarChart3,
+  Info, Activity, Save, History as HistoryIcon, CheckCircle2
+} from 'lucide-react';
 
 const SimulationScreen = ({ protocol, onBack }) => {
   const logsContainerRef = useRef(null);
-  const [showHistory, setShowHistory] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [hasRunDemo, setHasRunDemo] = useState(false);
-  const [isManualMode, setIsManualMode] = useState(false);
+  const [showHistory, setShowHistory]   = useState(false);
+  const [saveSuccess, setSaveSuccess]   = useState(false);
   const [processorCount, setProcessorCount] = useState(3);
+  const [resetCount, setResetCount]     = useState(0); // increments on each reset → remounts ProcessorNode
 
-  const { 
-    memory, 
-    processors, 
-    logs, 
+  const {
+    memory,
+    processors,
+    logs,
     busMessage,
     stats,
-    executeOperation, 
-    resetSimulation, 
+    graphData,
+    history,
+    executeOperation,
+    resetSimulation,
     updateMemory,
-    saveSimulation
+    saveSimulation,
   } = useSimulation(protocol, processorCount);
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    const result = await saveSimulation();
-    setIsSaving(false);
-    if (result) {
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    }
-  };
-
-  // Auto-Scroll Logs inside its container
+  /* ─── Auto-scroll event log to top (newest messages) ─── */
   useEffect(() => {
     if (logsContainerRef.current) {
-      // Only scroll the internal container, don't jump the main window
-      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight;
+      logsContainerRef.current.scrollTop = 0;
     }
   }, [logs]);
 
-  // Default Demo Simulation (Auto Run)
-  useEffect(() => {
-    if (!hasRunDemo && processors.length > 0 && !isManualMode) {
-      setHasRunDemo(true);
-      
-      const runDemo = async () => {
-        // Wait for entrance animations to finish
-        await new Promise(r => setTimeout(r, 1200));
-        if (isManualMode) return;
-        
-        // P1 Reads 0x00 (Cache Miss)
-        if (processors[0]) executeOperation(processors[0].id, 'READ', '0x00');
-        
-        // P2 Writes to 0x00 (BusRdX / Invalidation)
-        await new Promise(r => setTimeout(r, 2200));
-        if (isManualMode) return;
-        if (processors[1]) executeOperation(processors[1].id, 'WRITE', '0x00', 42);
-        
-        // P3 Reads 0x00 (Cache Miss / Snoop)
-        await new Promise(r => setTimeout(r, 2200));
-        if (isManualMode) return;
-        if (processors[2]) executeOperation(processors[2].id, 'READ', '0x00');
-
-        // P4 Activity if exists
-        await new Promise(r => setTimeout(r, 2200));
-        if (isManualMode) return;
-        if (processors[3]) executeOperation(processors[3].id, 'WRITE', '0x01', 99);
-      };
-      
-      runDemo();
+  /* ─── Save as JSON ─── */
+  const handleSave = useCallback(() => {
+    const ok = saveSimulation(stats, logs, memory, processors, graphData);
+    if (ok) {
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
     }
-  }, [hasRunDemo, processors, executeOperation, isManualMode]);
+  }, [saveSimulation, stats, logs, memory, processors, graphData]);
 
-  // Helper function to calculate SVG curved path for Data Transfers
+  /* ─── Reset ─── */
+  const handleReset = useCallback(() => {
+    resetSimulation();
+    setResetCount(c => c + 1); // causes ProcessorNode to remount → inputs clear
+  }, [resetSimulation]);
+
+  /* ─── Core count switching ─── */
+  const handleCoreChange = useCallback((count) => {
+    setProcessorCount(count);
+  }, []);
+
+  /* ─── SVG path for bus-transfer animation ─── */
   const getTransferPath = () => {
-    if (!busMessage || !processors.length) return "";
-    
-    // Find the index of the processor receiving/sending the message
+    if (!busMessage || !processors.length) return '';
     const targetIndex = processors.findIndex(p => p.id === busMessage.sender);
-    if (targetIndex === -1) return "";
-
-    // Start near bottom center of Memory
-    const startX = "50%";
-    const startY = "12%"; 
-    const endY = "85%";
-
-    // Dynamically calculate the X percentage target for the processor column
-    // Example for 3 Processors: 0 -> 10%, 1 -> 50%, 2 -> 90%
-    const totalProcessors = processors.length;
-    let endXPercent = 50; // Default center
-    
-    if (totalProcessors > 1) {
-       endXPercent = 10 + (targetIndex / (totalProcessors - 1)) * 80;
-    }
-    
-    // Draw a curved line from memory down to the dynamically calculated processor slot
-    return `M ${startX} ${startY} Q 50% 50% ${endXPercent}% ${endY}`;
+    if (targetIndex === -1) return '';
+    const total = processors.length;
+    let endXPercent = 50;
+    if (total > 1) endXPercent = 10 + (targetIndex / (total - 1)) * 80;
+    return `M 50% 12% Q 50% 50% ${endXPercent}% 85%`;
   };
 
   return (
     <>
       <div className="w-full min-h-screen bg-background flex flex-col pt-8 pb-16 px-4 md:px-8 xl:px-16 overflow-y-auto">
-      {/* --- TOP SECTION: Header --- */}
-      <div className="flex flex-col gap-6 mb-8 shrink-0 bg-surface/80 border border-white/10 p-6 rounded-2xl shadow-lg relative z-20 w-full max-w-[1400px] mx-auto">
-        
-        {/* Protocol Mode Highlight (Centered Top) */}
-        <div className="flex justify-center">
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="px-8 py-3 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center gap-4 shadow-[0_0_25px_rgba(59,130,246,0.25)] w-full sm:w-auto"
-          >
-            <span className="w-4 h-4 rounded-full bg-primary animate-pulse shadow-[0_0_15px_#3b82f6]" />
-            <span className="font-extrabold text-white tracking-[0.2em] text-xl md:text-2xl">{protocol} MODE</span>
-          </motion.div>
-        </div>
 
-        {/* Controls Row (Adaptive Flex) */}
-        <div className="flex flex-wrap items-center justify-between gap-6 border-t border-white/5 pt-5">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-lg"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Change Protocol
-          </button>
+        {/* ── Header ── */}
+        <div className="flex flex-col gap-6 mb-8 shrink-0 bg-surface/80 border border-white/10 p-6 rounded-2xl shadow-lg relative z-20 w-full max-w-[1400px] mx-auto">
 
-          <div className="flex flex-wrap justify-center bg-black/40 p-1 rounded-xl border border-white/5 shadow-inner">
-            {[2, 3, 4].map((count) => (
+          {/* Protocol badge */}
+          <div className="flex justify-center">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="px-8 py-3 bg-primary/20 border border-primary/40 rounded-2xl flex items-center justify-center gap-4 shadow-[0_0_25px_rgba(59,130,246,0.25)] w-full sm:w-auto"
+            >
+              <span className="w-4 h-4 rounded-full bg-primary animate-pulse shadow-[0_0_15px_#3b82f6]" />
+              <span className="font-extrabold text-white tracking-[0.2em] text-xl md:text-2xl">{protocol} MODE</span>
+            </motion.div>
+          </div>
+
+          {/* Controls row */}
+          <div className="flex flex-wrap items-center justify-between gap-6 border-t border-white/5 pt-5">
+            <button
+              onClick={onBack}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-lg"
+            >
+              <ArrowLeft className="w-5 h-5" /> Change Protocol
+            </button>
+
+            {/* Core count selector */}
+            <div className="flex flex-wrap justify-center bg-black/40 p-1 rounded-xl border border-white/5 shadow-inner">
+              {[2, 3, 4].map((count) => (
+                <button
+                  key={count}
+                  onClick={() => handleCoreChange(count)}
+                  className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${
+                    processorCount === count
+                      ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30'
+                      : 'text-slate-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {count} Cores
+                </button>
+              ))}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex flex-wrap justify-center items-center gap-2">
               <button
-                key={count}
-                onClick={() => {
-                  setProcessorCount(count);
-                  setHasRunDemo(false);
-                  setIsManualMode(true);
-                }}
-                className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${
-                  processorCount === count 
-                    ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30' 
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                onClick={() => setShowHistory(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition-all border border-white/5 text-sm font-bold"
+              >
+                <HistoryIcon className="w-4 h-4" /> History
+                {history.length > 0 && (
+                  <span className="ml-1 bg-blue-500/30 text-blue-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">{history.length}</span>
+                )}
+              </button>
+
+              <button
+                onClick={handleSave}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border text-sm font-bold ${
+                  saveSuccess
+                    ? 'bg-green-500/20 border-green-500/50 text-green-400'
+                    : 'bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400'
                 }`}
               >
-                {count} Cores
+                {saveSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                {saveSuccess ? 'Saved!' : 'Save'}
               </button>
-            ))}
-          </div>
 
-          <div className="flex flex-wrap justify-center items-center gap-2">
-            <button
-              onClick={() => setShowHistory(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition-all border border-white/5 text-sm font-bold"
-            >
-              <HistoryIcon className="w-4 h-4" />
-              History
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isSaving}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border text-sm font-bold ${
-                saveSuccess 
-                  ? 'bg-green-500/20 border-green-500/50 text-green-400' 
-                  : 'bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400'
-              }`}
-            >
-              {isSaving ? (
-                <Activity className="w-4 h-4 animate-spin" />
-              ) : saveSuccess ? (
-                <Cloud className="w-4 h-4" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Result'}
-            </button>
-            <button
-              onClick={() => { 
-                setHasRunDemo(false); 
-                setIsManualMode(false);
-                resetSimulation(); 
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-all border border-red-500/30 text-sm font-bold"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset Simulation
-            </button>
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-all border border-red-500/30 text-sm font-bold"
+              >
+                <RotateCcw className="w-4 h-4" /> Reset Simulation
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="w-full max-w-[1400px] mx-auto flex flex-col gap-10">
-        
-        {/* --- MIDDLE SECTION: Main Simulation Area (Memory + Processors) --- */}
-        <div className="w-full flex flex-col relative bg-surface/40 border border-white/5 rounded-3xl p-4 sm:p-6 lg:p-10 shadow-2xl overflow-hidden min-h-[500px] lg:min-h-[700px]">
-          
-          {/* Animated 3D Arc Overlay for Data Transfers */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: 'visible' }}>
-            <AnimatePresence>
-               {busMessage && (
-                 <>
-                   <motion.path
-                     initial={{ pathLength: 0, opacity: 0 }}
-                     animate={{ pathLength: 1, opacity: 1 }}
-                     exit={{ opacity: 0 }}
-                     transition={{ duration: 0.8, ease: "easeInOut" }}
-                     d={getTransferPath()}
-                     fill="transparent"
-                     stroke="#3b82f6"
-                     strokeWidth="4"
-                     strokeDasharray="12 8"
-                     className="drop-shadow-[0_0_15px_rgba(59,130,246,0.9)]"
-                   />
-                   {/* Glowing Data Packet animating exactly along the path */}
-                   <motion.circle
-                     r="6"
-                     fill="#60a5fa"
-                     className="drop-shadow-[0_0_20px_#60a5fa]"
-                     initial={{ opacity: 0 }}
-                     animate={{ opacity: 1 }}
-                     exit={{ opacity: 0 }}
-                   >
-                     <animateMotion 
-                        dur="0.8s" 
-                        repeatCount="1" 
-                        path={getTransferPath()} 
-                        fill="freeze"
-                     />
-                   </motion.circle>
-                 </>
-               )}
-            </AnimatePresence>
-          </svg>
+        <div className="w-full max-w-[1400px] mx-auto flex flex-col gap-10">
 
-          {/* Main Memory (Top Center) */}
-          <div className="w-full mb-8 relative flex justify-center z-10">
-             <MainMemoryView 
-               memory={memory} 
-               busMessage={busMessage} 
-               updateMemory={(addr, val) => {
-                 setIsManualMode(true);
-                 updateMemory(addr, val);
-               }} 
-             />
-          </div>
+          {/* ── Simulation Area (Memory + Bus + Processors) ── */}
+          <div className="w-full flex flex-col relative bg-surface/40 border border-white/5 rounded-3xl p-4 sm:p-6 lg:p-10 shadow-2xl overflow-hidden min-h-[500px] lg:min-h-[700px]">
 
-          {/* Animated Bus Message Overlay (Status / Transmission Indicator) */}
-          <div className="w-full flex justify-center z-20 h-16 mb-4 relative">
-             <AnimatePresence mode="wait">
-               {busMessage && (
-                 <motion.div
-                   initial={{ opacity: 0, scale: 0.9 }}
-                   animate={{ opacity: 1, scale: 1 }}
-                   exit={{ opacity: 0, scale: 0.8 }}
-                   key={busMessage.type + Date.now()}
-                   className="px-4 sm:px-8 py-3 bg-indigo-600/95 backdrop-blur-md border border-indigo-400 text-white font-bold rounded-2xl shadow-[0_10px_30px_rgba(79,70,229,0.5)] flex flex-col sm:flex-row text-center sm:text-left items-center gap-2 sm:gap-4"
-                 >
-                   <div className="p-1.5 bg-indigo-500/50 rounded-full">
-                     <AlertCircle className="w-5 h-5 text-white" />
-                   </div>
-                   <div className="text-lg">
-                     <span className="text-indigo-200 font-mono mr-2">[{busMessage.sender}]</span>
-                     Transmitting <span className="text-amber-300 mx-1">{busMessage.type}</span> 
-                     for <span className="text-emerald-300 font-mono ml-1">{busMessage.address}</span>
-                   </div>
-                 </motion.div>
-               )}
-             </AnimatePresence>
-          </div>
+            {/* SVG bus transfer arc */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: 'visible' }}>
+              <AnimatePresence>
+                {busMessage && (
+                  <>
+                    <motion.path
+                      key={`path-${busMessage.type}-${busMessage.address}`}
+                      initial={{ pathLength: 0, opacity: 0 }}
+                      animate={{ pathLength: 1, opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.7, ease: 'easeInOut' }}
+                      d={getTransferPath()}
+                      fill="transparent"
+                      stroke="#3b82f6"
+                      strokeWidth="4"
+                      strokeDasharray="12 8"
+                      className="drop-shadow-[0_0_15px_rgba(59,130,246,0.9)]"
+                    />
+                    <motion.circle
+                      r="6"
+                      fill="#60a5fa"
+                      className="drop-shadow-[0_0_20px_#60a5fa]"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <animateMotion dur="0.7s" repeatCount="1" path={getTransferPath()} fill="freeze" />
+                    </motion.circle>
+                  </>
+                )}
+              </AnimatePresence>
+            </svg>
 
-
-
-          {/* Processors Grid (Dynamically sizing to match active core count) */}
-          <div className={`w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${processorCount} gap-4 sm:gap-6 lg:gap-8 mt-auto relative z-10 items-end`}>
-            {processors.map((p) => (
-              <ProcessorNode 
-                key={p.id} 
-                processor={p} 
-                protocol={protocol}
-                isActive={busMessage && busMessage.sender === p.id}
+            {/* Main Memory */}
+            <div className="w-full mb-8 relative flex justify-center z-10">
+              <MainMemoryView
+                memory={memory}
                 busMessage={busMessage}
-                onExecute={(pid, op, addr, val) => {
-                  setIsManualMode(true);
-                  executeOperation(pid, op, addr, val);
-                }}
+                updateMemory={(addr, val) => updateMemory(addr, val)}
               />
-            ))}
+            </div>
+
+            {/* Bus Message Banner */}
+            <div className="w-full flex justify-center z-20 h-16 mb-4 relative">
+              <AnimatePresence mode="wait">
+                {busMessage && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    key={`${busMessage.type}-${busMessage.address}-${Date.now()}`}
+                    className="px-4 sm:px-8 py-3 bg-indigo-600/95 backdrop-blur-md border border-indigo-400 text-white font-bold rounded-2xl shadow-[0_10px_30px_rgba(79,70,229,0.5)] flex flex-col sm:flex-row text-center sm:text-left items-center gap-2 sm:gap-4"
+                  >
+                    <div className="p-1.5 bg-indigo-500/50 rounded-full">
+                      <AlertCircle className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="text-lg">
+                      <span className="text-indigo-200 font-mono mr-2">[{busMessage.sender}]</span>
+                      Transmitting <span className="text-amber-300 mx-1">{busMessage.type}</span>
+                      for <span className="text-emerald-300 font-mono ml-1">{busMessage.address}</span>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Processors Grid */}
+            <div className={`w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${processorCount} gap-4 sm:gap-6 lg:gap-8 mt-auto relative z-10 items-end`}>
+              {processors.map((p) => (
+                <ProcessorNode
+                  key={`${p.id}-${resetCount}`}
+                  processor={p}
+                  protocol={protocol}
+                  isActive={!!(busMessage && busMessage.sender === p.id)}
+                  busMessage={busMessage}
+                  onExecute={(pid, op, addr, val) => executeOperation(pid, op, addr, val)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* ── Bottom Panel ── */}
+          <div className="w-full flex flex-col gap-8">
+
+            {/* Live Graph */}
+            <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl h-[400px] flex flex-col shrink-0">
+              <div className="flex items-center gap-3 mb-6 text-white font-bold text-2xl shrink-0">
+                <Activity className="w-7 h-7 text-emerald-400" /> Live Simulation Graph
+              </div>
+              <div className="w-full flex-1 relative overflow-visible min-h-0">
+                <DynamicGraph graphData={graphData} />
+              </div>
+            </div>
+
+            {/* System Metrics */}
+            <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl">
+              <div className="flex items-center gap-3 mb-6 text-white font-bold text-2xl">
+                <BarChart3 className="w-7 h-7 text-primary" /> System Metrics
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+                {[
+                  { label: 'Cache Hits',   value: stats.hits,        color: 'text-emerald-400', glow: 'rgba(16,185,129,0.4)' },
+                  { label: 'Cache Misses', value: stats.misses,      color: 'text-rose-400',    glow: 'rgba(244,63,94,0.4)' },
+                  { label: 'Bus Traffic',  value: stats.busTraffic,  color: 'text-amber-400',   glow: 'rgba(251,191,36,0.4)' },
+                  { label: 'Transitions',  value: stats.transitions, color: 'text-blue-400',    glow: 'rgba(59,130,246,0.4)' },
+                ].map(({ label, value, color, glow }) => (
+                  <div key={label} className="bg-black/40 p-4 sm:p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                    <div className="text-sm text-slate-400 mb-2 font-bold uppercase tracking-widest">{label}</div>
+                    <motion.div
+                      key={value}
+                      initial={{ scale: 1.2, opacity: 0.5 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      className={`text-5xl font-mono font-extrabold ${color}`}
+                      style={{ filter: `drop-shadow(0 0 12px ${glow})` }}
+                    >
+                      {value}
+                    </motion.div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Event Log */}
+            <div className="w-full bg-surface/80 border border-white/10 rounded-3xl flex flex-col shadow-xl overflow-hidden h-[420px]">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-6 border-b border-white/10 bg-black/20 shrink-0">
+                <div className="flex items-center gap-3 text-white font-bold text-xl sm:text-2xl">
+                  <Info className="w-6 h-6 sm:w-7 sm:h-7 text-secondary" /> Event Log
+                </div>
+                <span className="text-xs sm:text-sm font-mono text-slate-400 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                  {logs.length} events recorded
+                </span>
+              </div>
+
+              <div
+                ref={logsContainerRef}
+                className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-3 font-mono text-sm scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-black/10"
+              >
+                {logs.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500 italic">
+                    <AlertCircle className="w-10 h-10 mb-4 opacity-40" />
+                    No events recorded yet. Perform a Read or Write to begin.
+                  </div>
+                ) : (
+                  <AnimatePresence initial={false}>
+                    {logs.map((log) => (
+                      <motion.div
+                        layout
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        key={log.id}
+                        className="bg-black/50 p-3 rounded-xl border border-white/5 break-words flex flex-row items-start hover:bg-black/70 transition-colors gap-3"
+                      >
+                        <span className="text-xs text-slate-500 font-bold shrink-0 mt-0.5">[{log.time}]</span>
+                        <span className="text-slate-200 leading-relaxed">
+                          {log.message.split(/(\[P\d+\]|→|HIT|MISS|0x[0-9a-fA-F]+|Bus\w+|State\s+\w+|State\s+\w+→\w+)/).map((part, i) => {
+                            if (/^\[P\d+\]$/.test(part))               return <span key={i} className="text-emerald-400 font-extrabold">{part}</span>;
+                            if (/^0x[0-9a-fA-F]+$/i.test(part))        return <span key={i} className="text-blue-400 font-bold bg-blue-500/10 px-1 rounded">{part}</span>;
+                            if (part === 'HIT')                         return <span key={i} className="text-emerald-400 font-bold">HIT</span>;
+                            if (part === 'MISS')                        return <span key={i} className="text-rose-400 font-bold">MISS</span>;
+                            if (part === '→')                           return <span key={i} className="text-slate-500 mx-0.5">→</span>;
+                            if (/^Bus\w+$/.test(part))                  return <span key={i} className="text-amber-400 font-bold">{part}</span>;
+                            if (/^State/.test(part))                    return <span key={i} className="text-purple-400 font-semibold">{part}</span>;
+                            return part;
+                          })}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
-
-        {/* --- BOTTOM SECTION: Stats, Logs (Stacked Vertically) --- */}
-        <div className="w-full flex flex-col gap-8">
-           
-           {/* Row 1: Real-Time Dynamic Graph */}
-           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl h-[400px] flex flex-col shrink-0">
-             <div className="flex items-center gap-3 mb-6 text-white font-bold text-2xl shrink-0">
-               <Activity className="w-7 h-7 text-emerald-400" /> Live Simulation Graph
-             </div>
-             <div className="w-full h-full relative overflow-visible">
-                <DynamicGraph key={`${protocol}-${processorCount}-${isManualMode}`} stats={stats} />
-             </div>
-           </div>
-
-           {/* Row 2: Real-time Stats Grid */}
-           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl p-4 sm:p-6 lg:p-8 shadow-xl">
-             <div className="flex items-center gap-3 mb-6 text-white font-bold text-2xl">
-               <BarChart3 className="w-7 h-7 text-primary" /> System Metrics
-             </div>
-             
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-               <div className="bg-black/40 p-4 sm:p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
-                 <div className="text-sm text-slate-400 mb-2 font-bold uppercase tracking-widest">Cache Hits</div>
-                 <div className="text-5xl font-mono text-emerald-400 font-extrabold drop-shadow-[0_0_12px_rgba(16,185,129,0.4)]">{stats.hits}</div>
-               </div>
-               <div className="bg-black/40 p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
-                 <div className="text-sm text-slate-400 mb-2 font-bold uppercase tracking-widest">Cache Misses</div>
-                 <div className="text-5xl font-mono text-rose-400 font-extrabold drop-shadow-[0_0_12px_rgba(244,63,94,0.4)]">{stats.misses}</div>
-               </div>
-               <div className="bg-black/40 p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
-                 <div className="text-sm text-slate-400 mb-2 font-bold uppercase tracking-widest">Bus Traffic</div>
-                 <div className="text-5xl font-mono text-amber-400 font-extrabold drop-shadow-[0_0_12px_rgba(251,191,36,0.4)]">{stats.busTraffic}</div>
-               </div>
-               <div className="bg-black/40 p-6 rounded-2xl border border-white/5 flex flex-col items-center justify-center">
-                 <div className="text-sm text-slate-400 mb-2 font-bold uppercase tracking-widest">Transitions</div>
-                 <div className="text-5xl font-mono text-blue-400 font-extrabold drop-shadow-[0_0_12px_rgba(59,130,246,0.4)]">{stats.transitions}</div>
-               </div>
-             </div>
-           </div>
-
-           {/* Row 3: Event Log Array */}
-           <div className="w-full bg-surface/80 border border-white/10 rounded-3xl flex flex-col shadow-xl overflow-hidden h-[400px]">
-             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-6 border-b border-white/10 bg-black/20">
-               <div className="flex items-center gap-3 text-white font-bold text-xl sm:text-2xl">
-                 <Info className="w-6 h-6 sm:w-7 sm:h-7 text-secondary" /> Event Log
-               </div>
-               <span className="text-xs sm:text-sm font-mono text-slate-400 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5 text-center">
-                 {logs.length} events recorded
-               </span>
-             </div>
-             
-             <div 
-               ref={logsContainerRef}
-               className="flex-grow overflow-y-auto p-4 sm:p-6 space-y-4 font-mono text-sm sm:text-base scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent bg-black/10"
-             >
-               {logs.length === 0 ? (
-                 <div className="h-full flex flex-col items-center justify-center text-slate-500 italic">
-                   <AlertCircle className="w-10 h-10 mb-4 opacity-50" />
-                   Silence on the bus. No events recorded yet.
-                 </div>
-               ) : (
-                 logs.map((log) => (
-                   <motion.div 
-                     initial={{ opacity: 0, x: 20 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     key={log.id} 
-                     className="bg-black/50 p-4 rounded-xl border border-white/5 break-words flex flex-row items-center hover:bg-black/70 transition-colors"
-                   >
-                     <span className="text-sm text-slate-500 mr-4 font-bold shrink-0">[{log.time}]</span>
-                     <span className="text-slate-200">
-                        {log.message.split(/([A-Z]\d+|0x\d{2}|[M|E|S|O|I]|Bus[A-Za-z]+)/).map((part, i) => {
-                          if (part.match(/^P\d+$/)) return <span key={i} className="text-emerald-400 font-extrabold">{part}</span>;
-                          if (part.match(/^0x\d{2}$/)) return <span key={i} className="text-blue-400 font-bold bg-blue-500/10 px-1 rounded">{part}</span>;
-                          if (part.match(/^[MESOI]$/)) return <span key={i} className="text-rose-400 font-extrabold">{part}</span>;
-                          if (part.match(/^Bus/)) return <span key={i} className="text-amber-400 font-bold border-b border-amber-400/50 pb-0.5">{part}</span>;
-                          return part;
-                        })}
-                     </span>
-                   </motion.div>
-                 ))
-               )}
-             </div>
-           </div>
-
-        </div>
       </div>
-    </div>
 
-      <SimulationHistory isOpen={showHistory} onClose={() => setShowHistory(false)} />
+      {/* History Modal */}
+      <SimulationHistory
+        isOpen={showHistory}
+        onClose={() => setShowHistory(false)}
+        history={history}
+      />
     </>
   );
 };

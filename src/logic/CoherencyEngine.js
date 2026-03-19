@@ -5,12 +5,8 @@ export default class CoherencyEngine {
     }
 
     reset() {
-        this.memory = {
-            '0x00': 10,
-            '0x01': 5,
-            '0x02': 0,
-            '0x03': 0,
-        };
+        // Pre-populate known addresses so Memory panel is never blank
+        this.memory = { '0x00': 0, '0x01': 0, '0x02': 0, '0x03': 0 };
         this.processors = Array.from({ length: this.processorCount }, (_, i) => ({
             id: `P${i + 1}`,
             cache: {}
@@ -28,6 +24,47 @@ export default class CoherencyEngine {
         this.stats[type]++;
     }
 
+    flushToMemory(address) {
+        let written = false;
+        // Loop through ALL processors
+        this.processors.forEach(p => {
+            // Find M or O
+            if (p.cache[address] && (p.cache[address].state === 'M' || p.cache[address].state === 'O')) {
+                if (!written) {
+                    // Update memory[address] = cache value
+                    this.memory[address] = p.cache[address].data;
+                    // Change that cache state -> S
+                    p.cache[address].state = 'S';
+                    
+                    this.addLog(`[FLUSH] ${p.id} wrote-back ${address}=${this.memory[address]} to Memory`);
+                    this.logStat('busTraffic');
+                    this.logStat('transitions');
+                    written = true; // Ensure ONLY ONE write-back happens per address
+                } else {
+                    // Optional: If there were multiple owners (which violates MOESI), at least demote them to S.
+                    p.cache[address].state = 'S';
+                }
+            }
+        });
+        return written;
+    }
+
+    flushAllToMemory() {
+        // Collect all known addresses
+        const addresses = new Set(Object.keys(this.memory));
+        this.processors.forEach(p => {
+            Object.keys(p.cache).forEach(addr => addresses.add(addr));
+        });
+        
+        let flushed = false;
+        addresses.forEach(addr => {
+            if (this.flushToMemory(addr)) {
+                flushed = true;
+            }
+        });
+        return flushed;
+    }
+
     getProcessor(processorId) {
         return this.processors.find(p => p.id === processorId);
     }
@@ -37,313 +74,529 @@ export default class CoherencyEngine {
         if (p) p.cache[address] = lineData;
     }
 
-    // Returns a summary object for the calling UI, but also maintains all deep state inside the engine
+    /**
+     * Ensures an address exists in memory. If a processor writes to an address
+     * that was never previously loaded from memory, we default its memory value
+     * to 0 rather than leaving it undefined.
+     */
+    ensureMemoryAddress(address) {
+        if (this.memory[address] === undefined) {
+            this.memory[address] = 0;
+        }
+    }
+
     execute(protocol, processorId, operationType, address, value = null) {
         this.busMessage = null;
-        this.logs = []; // Clear logs for just this operation, or keep appending? 
-        // Wait, useSimulation retains all logs. 
-        // It's better to clear engine.logs each run and let useSimulation append them, 
-        // OR let engine accumulate all logs and useSimulation just reads them. 
-        // For accurate tracking, useSimulation should just take engine.logs. 
-        // Actually, if we clear them, we must manage it carefully. Let engine.logs accumulate!
-        // So we do NOT clear this.logs here.
-        
-        let resultAction = 'None';
+        // Engine accumulates logs; caller must NOT clear them externally.
+        // They are read out and cleared per-call via logsSnapshot below.
+        const logsBefore = this.logs.length;
+
         let resultStatus = '';
-        let finalState = '';
 
         if (protocol === 'MSI') {
             if (operationType === 'READ') resultStatus = this.handleMSIRead(processorId, address);
-            else if (operationType === 'WRITE') resultStatus = this.handleMSIWrite(processorId, address, parseInt(value, 10));
+            else if (operationType === 'WRITE') resultStatus = this.handleMSIWrite(processorId, address, Number(value));
         } else if (protocol === 'MESI') {
             if (operationType === 'READ') resultStatus = this.handleMESIRead(processorId, address);
-            else if (operationType === 'WRITE') resultStatus = this.handleMESIWrite(processorId, address, parseInt(value, 10));
+            else if (operationType === 'WRITE') resultStatus = this.handleMESIWrite(processorId, address, Number(value));
         } else if (protocol === 'MOESI') {
-            if (operationType === 'READ') resultStatus = this.handleMOESIRead(processorId, address);
-            else if (operationType === 'WRITE') resultStatus = this.handleMOESIWrite(processorId, address, parseInt(value, 10));
+            resultStatus = this.handleMOESI(processorId, operationType, address, value);
         }
 
-        if (this.busMessage) resultAction = this.busMessage.type;
-        const finalCache = this.getProcessor(processorId).cache[address];
-        if (finalCache) finalState = finalCache.state;
+        const finalCache = this.getProcessor(processorId)?.cache[address];
+        const finalState = finalCache ? finalCache.state : '';
+
+        // Only return the NEW logs added in this operation
+        const newLogs = this.logs.slice(logsBefore);
 
         return {
             processor: processorId,
             operation: operationType,
-            address: address,
+            address,
             result: resultStatus,
-            action: resultAction,
-            protocol: protocol,
+            protocol,
             state: finalState,
-            // also return refs to updated internal state for ease of UI sync
             memorySnapshot: { ...this.memory },
             processorsSnapshot: JSON.parse(JSON.stringify(this.processors)),
-            logsSnapshot: [...this.logs],
+            newLogs,
             statsSnapshot: { ...this.stats },
             busMessageSnapshot: this.busMessage ? { ...this.busMessage } : null
         };
     }
 
-    // --- MSI PROTOCOL ---
+    // ─────────────────────────────────────────────────────────────
+    // MSI PROTOCOL — Strict write-back, N-core support
+    // Cache line format: { value, state }
+    // ─────────────────────────────────────────────────────────────
+
     handleMSIRead(processorId, address) {
-        let pCache = this.getProcessor(processorId).cache;
-        let line = pCache[address];
-        
-        if (line && (line.state === 'M' || line.state === 'S')) {
+        this.ensureMemoryAddress(address);
+        const proc    = this.getProcessor(processorId);
+        const line    = proc.cache[address];
+
+        // ── STEP 1: CACHE HIT (state is M or S, not I) ──
+        if (line && line.state !== 'I') {
             this.logStat('hits');
-            this.addLog(`${processorId} local read hit on ${address} (State: ${line.state})`);
+            this.addLog(`[${processorId}] READ ${address} → HIT (${line.state}) → value=${line.value}`);
             return 'HIT';
         }
 
+        // ── STEP 2: CACHE MISS ──
         this.logStat('misses');
-        this.addLog(`${processorId} local read miss on ${address}. Broadcasting BusRd.`);
-        this.busMessage = { sender: processorId, type: 'BusRd', address, data: null };
         this.logStat('busTraffic');
+        this.addLog(`[${processorId}] READ ${address} → MISS → Broadcasting BusRd`);
+        this.busMessage = { sender: processorId, type: 'BusRd', address };
 
-        let dataSuppliedByCache = false;
-        let suppliedData = this.memory[address];
+        // ── STEP 3: CHECK IF ANY CORE HAS STATE M (write-back needed) ──
+        const ownerM = this.processors.find(p =>
+            p.id !== processorId &&
+            p.cache[address] &&
+            p.cache[address].state === 'M'
+        );
 
-        this.processors.forEach(p => {
-            if (p.id === processorId) return;
-            let pLine = p.cache[address];
-            if (pLine && pLine.state === 'M') {
-                this.addLog(`${p.id} snooped BusRd for ${address}. Flushing modified data to memory and downgrading to S.`);
-                suppliedData = pLine.data;
-                dataSuppliedByCache = true;
-                pLine.state = 'S';
-                this.logStat('transitions');
-                this.memory[address] = pLine.data;
-            } else if (pLine && pLine.state === 'S') {
-                this.addLog(`${p.id} snooped BusRd for ${address}. Remains in S.`);
-            }
-        });
+        if (ownerM) {
+            // Write-back: dirty data from M owner → memory
+            this.memory[address] = ownerM.cache[address].data;
+            // M owner transitions → S (keeps data, now clean)
+            ownerM.cache[address].state = 'S';
+            this.logStat('transitions');
+            this.addLog(`[${ownerM.id}] Snooped BusRd ${address} → Write-back to memory (data=${this.memory[address]}) → State M→S`);
 
-        this.addLog(`${processorId} receives data ${dataSuppliedByCache ? 'from cache' : 'from memory'}. State -> S.`);
-        this.updateProcessorCache(processorId, address, { state: 'S', data: suppliedData });
+            // Requesting core gets fresh data from memory → S
+            this.logStat('transitions');
+            this.addLog(`[${processorId}] READ ${address} → Loaded from write-back → State I→S`);
+            proc.cache[address] = { data: this.memory[address], state: 'S' };
+            return 'MISS';
+        }
+
+        // ── STEP 4: CHECK IF ANY CORE HAS STATE S ──
+        const sharedExists = this.processors.some(p =>
+            p.id !== processorId &&
+            p.cache[address] &&
+            p.cache[address].state === 'S'
+        );
+
+        if (sharedExists) {
+            this.processors.forEach(p => {
+                if (p.id === processorId) return;
+                if (p.cache[address] && p.cache[address].state === 'S') {
+                    this.addLog(`[${p.id}] Snooped BusRd ${address} → Remains S`);
+                }
+            });
+            this.logStat('transitions');
+            this.addLog(`[${processorId}] READ ${address} → MISS → Shared exists → Loaded from memory → S`);
+            proc.cache[address] = { data: this.memory[address], state: 'S' };
+            return 'MISS';
+        }
+
+        // ── STEP 5: NO ONE HAS DATA — load directly from memory ──
         this.logStat('transitions');
+        this.addLog(`[${processorId}] READ ${address} → MISS → Loaded from memory (data=${this.memory[address]}) → S`);
+        proc.cache[address] = { data: this.memory[address], state: 'S' };
         return 'MISS';
     }
 
     handleMSIWrite(processorId, address, value) {
-        let pCache = this.getProcessor(processorId).cache;
-        let line = pCache[address];
+        this.ensureMemoryAddress(address);
+        const proc = this.getProcessor(processorId);
+        const line = proc.cache[address];
 
+        // ── CASE 1: Already Modified → SILENT HIT (no bus, per pseudocode) ──
         if (line && line.state === 'M') {
             this.logStat('hits');
-            this.addLog(`${processorId} local write hit on ${address}. Updates value. State -> M.`);
-            this.updateProcessorCache(processorId, address, { state: 'M', data: value });
+            line.data = value;   // silent update, no bus traffic
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → HIT (M) → Silent update (no bus)`);
             return 'HIT';
         }
 
+        // ── CASE 2: State S → upgrade via BusUpgr ──
         if (line && line.state === 'S') {
             this.logStat('hits');
-            this.addLog(`${processorId} local write hit on ${address} (State S). Broadcasting BusUpgr.`);
-            this.busMessage = { sender: processorId, type: 'BusUpgr', address, data: null };
+            this.busMessage = { sender: processorId, type: 'BusUpgr', address };
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → HIT (S) → BusUpgr`);
         } else {
+            // ── CASE 3: State I or no entry → BusRdX (read-exclusive) ──
             this.logStat('misses');
-            this.addLog(`${processorId} local write miss on ${address}. Broadcasting BusRdX.`);
-            this.busMessage = { sender: processorId, type: 'BusRdX', address, data: null };
+            this.busMessage = { sender: processorId, type: 'BusRdX', address };
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → MISS (I) → BusRdX`);
         }
-        this.logStat('busTraffic');
 
+        // S/I writes always generate bus traffic + transition
+        this.logStat('busTraffic');
+        this.logStat('transitions');
+
+        // ── STEP 1: INVALIDATE ALL OTHER CORES ──
+        // Mark state='I', keep entry visible in UI
+        // Memory is NOT updated (write-back policy)
         this.processors.forEach(p => {
             if (p.id === processorId) return;
-            let pLine = p.cache[address];
+            const pLine = p.cache[address];
             if (pLine) {
-                if (pLine.state === 'M') {
-                    this.addLog(`${p.id} snooped BusRdX/BusUpgr for ${address}. Flushing & Invalidating.`);
-                    this.memory[address] = pLine.data;
-                    pLine.state = 'I';
-                    this.logStat('transitions');
-                } else if (pLine.state === 'S') {
-                    this.addLog(`${p.id} snooped BusRdX/BusUpgr for ${address}. Invalidating.`);
-                    pLine.state = 'I';
-                    this.logStat('transitions');
-                }
+                const prev = pLine.state;
+                pLine.state = 'I';
+                this.addLog(`[${p.id}] Snooped ${this.busMessage.type} ${address} → State ${prev}→I`);
             }
         });
 
-        this.addLog(`${processorId} completes write on ${address}. State -> M.`);
-        this.updateProcessorCache(processorId, address, { state: 'M', data: value });
-        this.logStat('transitions');
-        return line ? 'HIT' : 'MISS';
+        // ── STEP 2: SET CURRENT CORE → M ──
+        proc.cache[address] = { data: value, state: 'M' };
+
+        // ── STEP 3: DO NOT UPDATE MEMORY (write-back policy) ──
+        this.addLog(`[${processorId}] WRITE ${address}=${value} → State →M | Memory stale (${this.memory[address]})`);
+        return line && line.state !== 'I' ? 'HIT' : 'MISS';
     }
 
-    // --- MESI PROTOCOL ---
+    // ─────────────────────────────────────────────
+    // MESI PROTOCOL
+    // ─────────────────────────────────────────────
     handleMESIRead(processorId, address) {
-        let pCache = this.getProcessor(processorId).cache;
-        let line = pCache[address];
-        if (line && (line.state === 'M' || line.state === 'E' || line.state === 'S')) {
+        this.ensureMemoryAddress(address);
+        const proc = this.getProcessor(processorId);
+        const localLine = proc.cache[address] || { state: 'I', data: 0 };
+
+        // ✅ HIT (S, E, M)
+        if (localLine.state !== 'I') {
             this.logStat('hits');
-            this.addLog(`${processorId} local read hit on ${address} (State: ${line.state})`);
+            this.addLog(`[${processorId}] READ ${address} → HIT (${localLine.state})`);
             return 'HIT';
         }
+
+        // ❌ MISS
         this.logStat('misses');
-        this.addLog(`${processorId} local read miss on ${address}. Broadcasting BusRd.`);
-        this.busMessage = { sender: processorId, type: 'BusRd', address, data: null };
         this.logStat('busTraffic');
-        
-        let isShared = false;
-        let suppliedData = this.memory[address];
-        
-        this.processors.forEach(p => {
-            if (p.id === processorId) return;
-            let pLine = p.cache[address];
-            if (pLine && pLine.state !== 'I') {
-                isShared = true;
-                if (pLine.state === 'M') {
-                    this.addLog(`${p.id} snooped BusRd for ${address}. Flushing modified data & transitioning to S.`);
-                    suppliedData = pLine.data;
-                    pLine.state = 'S';
-                    this.logStat('transitions');
-                    this.memory[address] = pLine.data;
-                } else if (pLine.state === 'E') {
-                    this.addLog(`${p.id} snooped BusRd for ${address}. Transitioning to S.`);
-                    pLine.state = 'S';
-                    this.logStat('transitions');
-                    suppliedData = pLine.data;
-                }
-            }
-        });
-        
-        let newState = isShared ? 'S' : 'E';
-        this.addLog(`${processorId} receives data. Shared line asserted: ${isShared}. State -> ${newState}.`);
-        this.updateProcessorCache(processorId, address, { state: newState, data: suppliedData });
+        this.addLog(`[${processorId}] READ ${address} → MISS → Broadcasting BusRd`);
+        this.busMessage = { sender: processorId, type: 'BusRd', address };
+
+        const otherProcessors = this.processors.filter(p => p.id !== processorId);
+
+        // 🔥 CHECK IF ANY CORE HAS M (CRITICAL)
+        const ownerM = otherProcessors.find(p => p.cache[address] && p.cache[address].state === 'M');
+
+        if (ownerM) {
+            // 🔥 WRITE-BACK
+            this.memory[address] = ownerM.cache[address].data;
+            ownerM.cache[address].state = 'S';
+            this.logStat('transitions');
+            this.addLog(`[${ownerM.id}] Snooped BusRd ${address} → Write-back to memory → State M→S`);
+
+            localLine.state = 'S';
+            localLine.data = this.memory[address];
+            proc.cache[address] = localLine;
+            this.logStat('transitions');
+            this.addLog(`[${processorId}] READ ${address} → Loaded from Dirty Owner → State I→S`);
+            return 'MISS';
+        }
+
+        // 🔥 CHECK IF ANY CORE HAS E
+        const ownerE = otherProcessors.find(p => p.cache[address] && p.cache[address].state === 'E');
+
+        if (ownerE) {
+            ownerE.cache[address].state = 'S';
+            this.logStat('transitions');
+            this.addLog(`[${ownerE.id}] Snooped BusRd ${address} → State E→S`);
+
+            localLine.state = 'S';
+            localLine.data = ownerE.cache[address].data;
+            proc.cache[address] = localLine;
+            this.logStat('transitions');
+            this.addLog(`[${processorId}] READ ${address} → Loaded from Exclusive → State I→S`);
+            return 'MISS';
+        }
+
+        // 🔥 CHECK IF ANY CORE HAS S
+        const sharedExists = otherProcessors.some(p => p.cache[address] && p.cache[address].state === 'S');
+
+        if (sharedExists) {
+            localLine.state = 'S';
+            localLine.data = this.memory[address];
+            proc.cache[address] = localLine;
+            this.logStat('transitions');
+            this.addLog(`[${processorId}] READ ${address} → Loaded from Shared → State I→S`);
+            return 'MISS';
+        }
+
+        // 🔥 NO ONE HAS DATA → EXCLUSIVE
+        localLine.state = 'E';
+        localLine.data = this.memory[address];
+        proc.cache[address] = localLine;
         this.logStat('transitions');
+        this.addLog(`[${processorId}] READ ${address} → MISS → No one has data → State I→E`);
         return 'MISS';
     }
 
     handleMESIWrite(processorId, address, value) {
-        let pCache = this.getProcessor(processorId).cache;
-        let line = pCache[address];
-        if (line && (line.state === 'M' || line.state === 'E')) {
-            this.logStat('hits');
-            let oldState = line.state;
-            this.addLog(`${processorId} local write hit on ${address} (State ${oldState}). State -> M. (No Bus Traffic)`);
-            this.updateProcessorCache(processorId, address, { state: 'M', data: value });
-            if (oldState !== 'M') this.logStat('transitions');
-            return 'HIT';
-        }
-        if (line && line.state === 'S') {
-            this.logStat('hits');
-            this.addLog(`${processorId} local write hit on ${address} (State S). Broadcasting BusUpgr.`);
-            this.busMessage = { sender: processorId, type: 'BusUpgr', address, data: null };
-        } else {
-            this.logStat('misses');
-            this.addLog(`${processorId} local write miss on ${address}. Broadcasting BusRdX.`);
-            this.busMessage = { sender: processorId, type: 'BusRdX', address, data: null };
-        }
-        this.logStat('busTraffic');
-        
-        this.processors.forEach(p => {
-            if (p.id === processorId) return;
-            let pLine = p.cache[address];
-            if (pLine && pLine.state !== 'I') {
-                if (pLine.state === 'M') {
-                    this.addLog(`${p.id} snooped BusRdX for ${address}. Flushing & Invalidating.`);
-                    this.memory[address] = pLine.data;
-                } else {
-                    this.addLog(`${p.id} snooped BusRdX/BusUpgr for ${address}. Invalidating.`);
-                }
-                pLine.state = 'I';
-                this.logStat('transitions');
-            }
-        });
-        
-        this.addLog(`${processorId} completes write on ${address}. State -> M.`);
-        this.updateProcessorCache(processorId, address, { state: 'M', data: value });
-        this.logStat('transitions');
-        return line ? 'HIT' : 'MISS';
-    }
+        this.ensureMemoryAddress(address);
+        const proc = this.getProcessor(processorId);
+        const localLine = proc.cache[address] || { state: 'I', data: 0 };
 
-    // --- MOESI PROTOCOL ---
-    handleMOESIRead(processorId, address) {
-        let pCache = this.getProcessor(processorId).cache;
-        let line = pCache[address];
-        if (line && (line.state === 'M' || line.state === 'O' || line.state === 'E' || line.state === 'S')) {
+        // ✅ CASE 1: Already Modified → HIT
+        if (localLine.state === 'M') {
             this.logStat('hits');
-            this.addLog(`${processorId} local read hit on ${address} (State: ${line.state})`);
+            localLine.data = value;
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → HIT (M) → Silent update`);
             return 'HIT';
         }
-        this.logStat('misses');
-        this.addLog(`${processorId} local read miss on ${address}. Broadcasting BusRd.`);
-        this.busMessage = { sender: processorId, type: 'BusRd', address, data: null };
-        this.logStat('busTraffic');
-        
-        let isShared = false;
-        let suppliedData = this.memory[address];
-        let dataFromCache = false;
-        
-        this.processors.forEach(p => {
-            if (p.id === processorId) return;
-            let pLine = p.cache[address];
-            if (pLine && pLine.state !== 'I') {
-                isShared = true;
-                if (pLine.state === 'M') {
-                    this.addLog(`${p.id} snooped BusRd for ${address}. Transitioning to O. Providing data to bus.`);
-                    suppliedData = pLine.data;
-                    pLine.state = 'O';
-                    dataFromCache = true;
-                    this.logStat('transitions');
-                } else if (pLine.state === 'O') {
-                    this.addLog(`${p.id} snooped BusRd for ${address}. Remains in O. Providing data to bus.`);
-                    suppliedData = pLine.data;
-                    dataFromCache = true;
-                } else if (pLine.state === 'E') {
-                    this.addLog(`${p.id} snooped BusRd for ${address}. Transitioning to S.`);
-                    pLine.state = 'S';
+
+        // ✅ CASE 2: Exclusive → direct upgrade (no invalidate)
+        if (localLine.state === 'E') {
+            this.logStat('hits');
+            localLine.state = 'M';
+            localLine.data = value;
+            this.logStat('transitions');
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → HIT (E) → Silent upgrade to M`);
+            return 'HIT';
+        }
+
+        const otherProcessors = this.processors.filter(p => p.id !== processorId);
+
+        // 🔥 CASE 3: Shared → invalidate others (BusUpgr)
+        if (localLine.state === 'S') {
+            this.logStat('hits');
+            this.logStat('busTraffic');
+            this.busMessage = { sender: processorId, type: 'BusUpgr', address };
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → HIT (S) → Broadcasting BusUpgr`);
+
+            otherProcessors.forEach(p => {
+                if (p.cache[address]) {
+                    const prevState = p.cache[address].state;
+                    p.cache[address].state = 'I';
+                    this.addLog(`[${p.id}] Snooped BusUpgr ${address} → State ${prevState}→I`);
+                }
+            });
+
+            localLine.state = 'M';
+            localLine.data = value;
+            this.logStat('transitions');
+            return 'HIT';
+        }
+
+        // 🔥 CASE 4: Invalid → BusRdX
+        if (localLine.state === 'I') {
+            this.logStat('misses');
+            this.logStat('busTraffic');
+            this.busMessage = { sender: processorId, type: 'BusRdX', address };
+            this.addLog(`[${processorId}] WRITE ${address}=${value} → MISS (I) → Broadcasting BusRdX`);
+
+            otherProcessors.forEach(p => {
+                const pLine = p.cache[address];
+                if (pLine) {
+                    const prevState = pLine.state;
+                    if (prevState === 'M') {
+                        // Flush dirty data if invalidating an M owner
+                        this.memory[address] = pLine.data;
+                        this.addLog(`[${p.id}] Snooped BusRdX ${address} → Flush to Memory & Invalidate → State M→I`);
+                    } else {
+                        this.addLog(`[${p.id}] Snooped BusRdX ${address} → Invalidate → State ${prevState}→I`);
+                    }
+                    pLine.state = 'I';
                     this.logStat('transitions');
                 }
-            }
-        });
-        
-        let newState = isShared ? 'S' : 'E';
-        this.addLog(`${processorId} receives data ${dataFromCache ? 'from cache' : 'from memory'}. State -> ${newState}.`);
-        this.updateProcessorCache(processorId, address, { state: newState, data: suppliedData });
-        this.logStat('transitions');
-        return 'MISS';
+            });
+
+            localLine.state = 'M';
+            localLine.data = value;
+            this.logStat('transitions');
+            return 'MISS';
+        }
     }
 
-    handleMOESIWrite(processorId, address, value) {
-        let pCache = this.getProcessor(processorId).cache;
-        let line = pCache[address];
-        if (line && (line.state === 'M' || line.state === 'E')) {
-            this.logStat('hits');
-            let oldState = line.state;
-            this.addLog(`${processorId} local write hit on ${address} (State ${oldState}). State -> M. (No Bus Traffic)`);
-            this.updateProcessorCache(processorId, address, { state: 'M', data: value });
-            if (oldState !== 'M') this.logStat('transitions');
-            return 'HIT';
-        }
-        if (line && (line.state === 'S' || line.state === 'O')) {
-            this.logStat('hits');
-            this.addLog(`${processorId} local write hit on ${address} (State ${line.state}). Broadcasting BusUpgr.`);
-            this.busMessage = { sender: processorId, type: 'BusUpgr', address, data: null };
-        } else {
-            this.logStat('misses');
-            this.addLog(`${processorId} local write miss on ${address}. Broadcasting BusRdX.`);
-            this.busMessage = { sender: processorId, type: 'BusRdX', address, data: null };
-        }
-        this.logStat('busTraffic');
-        
+    get cache() {
+        // Build an object mapping processorId to its cache dictionary
+        const c = {};
         this.processors.forEach(p => {
-            if (p.id === processorId) return;
-            let pLine = p.cache[address];
-            if (pLine && pLine.state !== 'I') {
-                if (pLine.state === 'M' || pLine.state === 'O') {
-                    this.addLog(`${p.id} snooped BusRdX/BusUpgr for ${address}. Flushing to memory & Invalidating.`);
-                    this.memory[address] = pLine.data;
-                } else {
-                    this.addLog(`${p.id} snooped BusRdX/BusUpgr for ${address}. Invalidating.`);
-                }
-                pLine.state = 'I';
+            c[p.id] = p.cache;
+        });
+        return c;
+    }
+
+    _handleMOESI(processor, operation, address, log, otherCopies) {
+        const localLine = this.cache[processor][address];
+
+        // =========================
+        // 🔷 READ OPERATION (BusRd)
+        // =========================
+        if (operation === "READ") {
+
+            // ✅ HIT (M, O, E, S)
+            if (localLine.state !== "I") {
+                log.action = "NONE";
+                return;
+            }
+
+            log.action = "BUS_READ";
+
+            // 🔥 STEP 1: CHECK FOR MODIFIED (M)
+            let ownerM = otherCopies.find(p =>
+                this.cache[p][address]?.state === "M"
+            );
+
+            if (ownerM) {
+                // ❌ NO WRITE BACK (MOESI RULE)
+
+                // M → O (ONLY ONE OWNER)
+                this.cache[ownerM][address].state = "O";
+
+                // Requester → S
+                localLine.state = "S";
+
+                // Transfer latest data
+                localLine.data = this.cache[ownerM][address].data;
+
+                log.action = "CACHE_TO_CACHE (M→O, S)";
+                return;
+            }
+
+            // 🔥 STEP 2: CHECK FOR OWNER (O)
+            let ownerO = otherCopies.find(p =>
+                this.cache[p][address]?.state === "O"
+            );
+
+            if (ownerO) {
+                // Owner stays O
+                localLine.state = "S";
+
+                // Get data from owner
+                localLine.data = this.cache[ownerO][address].data;
+
+                log.action = "CACHE_TO_CACHE (O supplies)";
+                return;
+            }
+
+            // 🔥 STEP 3: CHECK FOR EXCLUSIVE (E)
+            let ownerE = otherCopies.find(p =>
+                this.cache[p][address]?.state === "E"
+            );
+
+            if (ownerE) {
+                // E → S
+                this.cache[ownerE][address].state = "S";
+
+                localLine.state = "S";
+                localLine.data = this.cache[ownerE][address].data;
+
+                log.action = "E→S SHARING";
+                return;
+            }
+
+            // 🔥 STEP 4: CHECK FOR SHARED (S)
+            let sharedCopies = otherCopies.filter(p =>
+                this.cache[p][address]?.state === "S"
+            );
+
+            if (sharedCopies.length > 0) {
+                localLine.state = "S";
+                log.action = "SHARED_READ";
+                return;
+            }
+
+            // 🔥 STEP 5: NO ONE HAS → EXCLUSIVE
+            localLine.state = "E";
+            log.action = "BUS_READ_EXCLUSIVE";
+        }
+
+        // =========================
+        // 🔷 WRITE OPERATION
+        // =========================
+        else if (operation === "WRITE") {
+
+            // ✅ CASE 1: M → HIT
+            if (localLine.state === "M") {
+                log.action = "NONE";
+                return;
+            }
+
+            // ✅ CASE 2: E → M (no bus)
+            if (localLine.state === "E") {
+                localLine.state = "M";
+                log.action = "SILENT_UPGRADE";
+                return;
+            }
+
+            // 🔥 CASE 3: S OR O → invalidate ALL others
+            if (localLine.state === "S" || localLine.state === "O") {
+                log.action = "BUS_UPGRADE";
+
+                otherCopies.forEach(p => {
+                    if (this.cache[p][address]) {
+                        this.cache[p][address].state = "I";
+                    }
+                });
+
+                localLine.state = "M";
+                return;
+            }
+
+            // 🔥 CASE 4: I → BusRdX
+            if (localLine.state === "I") {
+                log.action = "BUS_READ_EXCLUSIVE";
+
+                otherCopies.forEach(p => {
+                    if (this.cache[p][address]) {
+                        this.cache[p][address].state = "I";
+                    }
+                });
+
+                localLine.state = "M";
+                return;
+            }
+        }
+    }
+
+    handleMOESI(processorId, operationType, address, value) {
+        this.ensureMemoryAddress(address);
+        const proc = this.getProcessor(processorId);
+        
+        // Ensure local line exists for user's code to reference without throwing
+        if (!proc.cache[address]) {
+            proc.cache[address] = { state: 'I', data: this.memory[address] || 0 };
+        }
+
+        const logObj = { action: "" };
+        const otherCopies = this.processors.filter(p => p.id !== processorId).map(p => p.id);
+
+        // Call the user's implementation
+        this._handleMOESI(processorId, operationType, address, logObj, otherCopies);
+
+        // Post-process the effects
+        if (operationType === 'WRITE') {
+            proc.cache[address].data = value;
+        }
+
+        const action = logObj.action;
+        
+        // Map log.action back to our simulator's stats and UI messages
+        if (action === "NONE" || action === "SILENT_UPGRADE") {
+            this.logStat('hits');
+            if (action === "SILENT_UPGRADE") {
                 this.logStat('transitions');
             }
-        });
-        
-        this.addLog(`${processorId} completes write on ${address}. State -> M.`);
-        this.updateProcessorCache(processorId, address, { state: 'M', data: value });
-        this.logStat('transitions');
-        return line ? 'HIT' : 'MISS';
+            this.addLog(`[${processorId}] ${operationType} ${address} → ${action === "NONE" ? "HIT" : action} (${proc.cache[address].state})`);
+            return 'HIT';
+        } else {
+            this.logStat('misses');
+            this.logStat('busTraffic');
+            this.logStat('transitions');
+            
+            // Reconstruct a plausible Bus message
+            let busType = action;
+            if (action.includes("UPGRADE")) busType = 'BusUpgr';
+            else if (action.includes("EXCLUSIVE") && operationType === 'WRITE') busType = 'BusRdX';
+            else if (action.includes("READ")) busType = 'BusRd';
+
+            this.busMessage = { sender: processorId, type: busType, address };
+            this.addLog(`[${processorId}] ${operationType} ${address} → ACTION: ${action}`);
+            
+            // Log global invalidations if it was an upgrade or read exclusive
+            if (action === "BUS_UPGRADE" || (action === "BUS_READ_EXCLUSIVE" && operationType === "WRITE")) {
+                this.addLog(`[*] Other caches invalidated for ${address}`);
+            }
+
+            // Update memory for read if reading from memory (no owners)
+            if (operationType === "READ" && action === "BUS_READ_EXCLUSIVE") {
+                proc.cache[address].data = this.memory[address];
+            }
+
+            return 'MISS';
+        }
     }
 }

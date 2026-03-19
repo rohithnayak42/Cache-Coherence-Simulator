@@ -198,10 +198,10 @@ export const ProcessorNode = memo(({ processor, protocol, isActive, onExecute, b
                     ) : (
                        <div className="flex items-center gap-2">
                          <span className={`font-bold transition-all ${isBwMode ? 'text-white' : (isLineActive && !isTargeted ? 'text-primary drop-shadow-[0_0_5px_rgba(59,130,246,0.8)]' : 'text-white')}`}>
-                           {line.data}
+                           {line.data ?? line.value}
                          </span>
                          <button 
-                             onClick={() => startInlineEdit(addr, line.data)}
+                             onClick={() => startInlineEdit(addr, line.data ?? line.value)}
                              className={`opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10
                                 ${isBwMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-white'}`}
                              title="Edit Cache Line"
