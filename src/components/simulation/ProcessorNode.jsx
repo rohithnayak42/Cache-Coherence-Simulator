@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Cpu, HardDrive, Play, ChevronDown, Activity, RefreshCw, Edit2, Check } from 'lucide-react';
+import { Cpu, HardDrive, Activity, RefreshCw, Edit2, Check } from 'lucide-react';
 
 // Shared helper so every ProcessorNode instance doesn't create its own MutationObserver
 const getIsBwMode = () => document.body.classList.contains('theme-bw');
@@ -34,22 +34,55 @@ const PROTOCOL_STATES = {
 };
 
 export const ProcessorNode = memo(({ processor, protocol, isActive, onExecute, busMessage }) => {
-  const [selectedAddr, setSelectedAddr] = useState('0x00');
-  const [inputValue, setInputValue] = useState(0);
+  const [addrInput, setAddrInput] = useState('0x00');
+  const [valueInput, setValueInput] = useState('');
+  const [addrError, setAddrError] = useState('');
+  const [valueError, setValueError] = useState('');
   const isBwMode = useBwMode();
   
   // Inline cache editing state
   const [editingAddr, setEditingAddr] = useState(null);
   const [cacheEditValue, setCacheEditValue] = useState("");
 
+  const isValidAddress = (addr) => {
+    if (!addr.trim()) return false;
+    if (/^0x[0-9a-fA-F]+$/i.test(addr.trim())) return true;
+    if (/^\d+$/.test(addr.trim())) return true;
+    return false;
+  };
+
   const handleRead = useCallback(() => {
-    onExecute(processor.id, 'READ', selectedAddr);
-  }, [onExecute, processor.id, selectedAddr]);
+    let valid = true;
+    if (!isValidAddress(addrInput)) {
+      setAddrError('Enter a valid hex (0x..) or decimal address');
+      valid = false;
+    } else {
+      setAddrError('');
+    }
+    if (!valid) return;
+    onExecute(processor.id, 'READ', addrInput.trim());
+  }, [onExecute, processor.id, addrInput]);
 
   const handleWrite = useCallback(() => {
-    onExecute(processor.id, 'WRITE', selectedAddr, inputValue);
-    setInputValue(Math.floor(Math.random() * 100));
-  }, [onExecute, processor.id, selectedAddr, inputValue]);
+    let valid = true;
+    if (!isValidAddress(addrInput)) {
+      setAddrError('Enter a valid hex (0x..) or decimal address');
+      valid = false;
+    } else {
+      setAddrError('');
+    }
+    if (valueInput.trim() === '') {
+      setValueError('Value is required for Write');
+      valid = false;
+    } else if (isNaN(Number(valueInput.trim()))) {
+      setValueError('Value must be a number');
+      valid = false;
+    } else {
+      setValueError('');
+    }
+    if (!valid) return;
+    onExecute(processor.id, 'WRITE', addrInput.trim(), Number(valueInput.trim()));
+  }, [onExecute, processor.id, addrInput, valueInput]);
 
   const startInlineEdit = (addr, currentValue) => {
     setEditingAddr(addr);
@@ -190,31 +223,45 @@ export const ProcessorNode = memo(({ processor, protocol, isActive, onExecute, b
 
         {/* Action Controls */}
         <div className={`p-4 rounded-xl border ${isBwMode ? 'bg-[#000] border-[#333]' : 'bg-black/30 border-white/5'}`}>
-          <div className="flex flex-wrap sm:flex-nowrap gap-2 mb-3">
-            <div className="relative flex-1 min-w-[80px]">
-              <select 
-                value={selectedAddr}
-                onChange={(e) => setSelectedAddr(e.target.value)}
-                className={`w-full appearance-none rounded-lg px-3 py-2 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 
-                  ${isBwMode ? 'bg-[#222] text-white border border-[#444] focus:ring-white' : 'bg-surface border border-white/10 text-white focus:ring-primary/50'}`}
-              >
-                <option value="0x00">0x00</option>
-                <option value="0x01">0x01</option>
-                <option value="0x02">0x02</option>
-                <option value="0x03">0x03</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            </div>
-            <input 
-              type="number" 
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              className={`w-full sm:w-20 flex-shrink-0 rounded-lg px-3 py-2 text-sm text-center font-mono focus:outline-none focus:ring-2 
-                  ${isBwMode ? 'bg-[#222] text-white border border-[#444] focus:ring-white' : 'bg-surface border border-white/10 text-white focus:ring-primary/50'}`}
-              placeholder="Val"
+          {/* Address Input */}
+          <div className="mb-2">
+            <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Address</label>
+            <input
+              type="text"
+              value={addrInput}
+              onChange={(e) => { setAddrInput(e.target.value); setAddrError(''); }}
+              placeholder="e.g. 0x00 or 16"
+              className={`w-full rounded-lg px-3 py-2 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 transition-colors
+                ${addrError
+                  ? (isBwMode ? 'border border-red-400 bg-[#222] text-white focus:ring-red-400' : 'border border-red-500/70 bg-surface text-white focus:ring-red-500/50')
+                  : (isBwMode ? 'bg-[#222] text-white border border-[#444] focus:ring-white' : 'bg-surface border border-white/10 text-white focus:ring-primary/50')
+                }`}
             />
+            {addrError && (
+              <p className="text-xs text-red-400 mt-1 leading-tight">{addrError}</p>
+            )}
           </div>
-          
+
+          {/* Value Input */}
+          <div className="mb-3">
+            <label className="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Value <span className="normal-case font-normal text-slate-500">(Write only)</span></label>
+            <input
+              type="text"
+              value={valueInput}
+              onChange={(e) => { setValueInput(e.target.value); setValueError(''); }}
+              placeholder="e.g. 42"
+              className={`w-full rounded-lg px-3 py-2 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 transition-colors
+                ${valueError
+                  ? (isBwMode ? 'border border-red-400 bg-[#222] text-white focus:ring-red-400' : 'border border-red-500/70 bg-surface text-white focus:ring-red-500/50')
+                  : (isBwMode ? 'bg-[#222] text-white border border-[#444] focus:ring-white' : 'bg-surface border border-white/10 text-white focus:ring-primary/50')
+                }`}
+            />
+            {valueError && (
+              <p className="text-xs text-red-400 mt-1 leading-tight">{valueError}</p>
+            )}
+          </div>
+
+          {/* Action Buttons */}
           <div className="flex gap-2">
             <button 
               onClick={handleRead}
