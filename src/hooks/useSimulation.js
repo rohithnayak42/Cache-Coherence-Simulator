@@ -118,45 +118,11 @@ export const useSimulation = (protocolType, processorCount = 3) => {
 
   /* ─────────────────────── flushMemory ────────────────────── */
   const flushMemory = useCallback((address = null) => {
-    if (!engineRef.current) return;
-    
-    // Only flush if protocol is MOESI, or if you want it universally available
-    // But user specifically asked for MOESI BUG FIX.
-    const didFlush = address 
-       ? engineRef.current.flushToMemory(address)
-       : engineRef.current.flushAllToMemory();
-
-    if (didFlush) {
-       // Pull the updated state from engine into React state
-       setMemory({ ...engineRef.current.memory });
-       setProcessors(JSON.parse(JSON.stringify(engineRef.current.processors)));
-       setStats({ ...engineRef.current.stats });
-       
-       const newLogItems = engineRef.current.logs
-         .slice(logs.length) // Wait, engine accumulates logs. Better to just map all or diff.
-         // Actually, engineRef.current.logs is the full array.
-         // Since we only appended, we can just grab the latest.
-         .map(l => ({ id: l.id, time: l.time, message: l.message }));
-         
-       // Since the engine appends to the end of its internal array, we just need to re-sync
-       // But `useSimulation` normally manages `logs` by prepending `newLogs.reverse()`.
-       // Let's just do a clean sync of the latest logs. We'll find what was added since last sync.
-       const engineLogCount = engineRef.current.logs.length;
-       const localLogCount = logs.length;
-       if (engineLogCount > localLogCount) {
-           const newlyAdded = engineRef.current.logs.slice(localLogCount).map(l => ({ 
-               id: l.id, time: l.time, message: l.message 
-           }));
-           setLogs(prev => [...newlyAdded.reverse(), ...prev]);
-       }
-    }
-  }, [logs.length]);
+    // Intentionally omitted functionality: strict MOESI does not update memory.
+  }, []);
 
   /* ─────────────────────── resetSimulation ──────────────────── */
   const resetSimulation = useCallback(() => {
-    if (protocolType === 'MOESI') {
-        engineRef.current.flushAllToMemory();
-    }
     engineRef.current.reset();
     stepCountRef.current = 0;
     setMemory(makeDefaultMemory());
@@ -171,16 +137,6 @@ export const useSimulation = (protocolType, processorCount = 3) => {
   /* ─────────────────────── saveSimulation ───────────────────── */
   // Saves full simulation state as a JSON file download (fully client-side)
   const saveSimulation = useCallback((currentStats, currentLogs, currentMemory, currentProcs, currentGraph) => {
-    // Call flushToMemory before saving if MOESI
-    if (protocolType === 'MOESI') {
-        engineRef.current.flushAllToMemory();
-        // Update local references used for payload
-        currentMemory = { ...engineRef.current.memory };
-        currentProcs = JSON.parse(JSON.stringify(engineRef.current.processors));
-        currentStats = { ...engineRef.current.stats };
-        currentLogs = engineRef.current.logs.map(l => ({ id: l.id, time: l.time, message: l.message })).reverse();
-    }
-
     const payload = {
       protocol: protocolType,
       processorCount,

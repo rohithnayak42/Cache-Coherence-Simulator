@@ -24,47 +24,6 @@ export default class CoherencyEngine {
         this.stats[type]++;
     }
 
-    flushToMemory(address) {
-        let written = false;
-        // Loop through ALL processors
-        this.processors.forEach(p => {
-            // Find M or O
-            if (p.cache[address] && (p.cache[address].state === 'M' || p.cache[address].state === 'O')) {
-                if (!written) {
-                    // Update memory[address] = cache value
-                    this.memory[address] = p.cache[address].data;
-                    // Change that cache state -> S
-                    p.cache[address].state = 'S';
-                    
-                    this.addLog(`[FLUSH] ${p.id} wrote-back ${address}=${this.memory[address]} to Memory`);
-                    this.logStat('busTraffic');
-                    this.logStat('transitions');
-                    written = true; // Ensure ONLY ONE write-back happens per address
-                } else {
-                    // Optional: If there were multiple owners (which violates MOESI), at least demote them to S.
-                    p.cache[address].state = 'S';
-                }
-            }
-        });
-        return written;
-    }
-
-    flushAllToMemory() {
-        // Collect all known addresses
-        const addresses = new Set(Object.keys(this.memory));
-        this.processors.forEach(p => {
-            Object.keys(p.cache).forEach(addr => addresses.add(addr));
-        });
-        
-        let flushed = false;
-        addresses.forEach(addr => {
-            if (this.flushToMemory(addr)) {
-                flushed = true;
-            }
-        });
-        return flushed;
-    }
-
     getProcessor(processorId) {
         return this.processors.find(p => p.id === processorId);
     }
@@ -485,6 +444,7 @@ export default class CoherencyEngine {
 
             if (sharedCopies.length > 0) {
                 localLine.state = "S";
+                localLine.data = this.cache[sharedCopies[0]][address].data;
                 log.action = "SHARED_READ";
                 return;
             }
