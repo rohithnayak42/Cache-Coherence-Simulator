@@ -45,14 +45,13 @@ export const MainMemoryView = ({ memory, busMessage, updateMemory }) => {
       <div className={`w-full max-w-lg border rounded-3xl p-6 relative z-10 transition-all duration-300
         ${isBwMode ? 'bg-[#111] border-[#444]' : 'bg-surface/80 border-slate-600 shadow-[0_0_40px_rgba(0,0,0,0.6)]'}
       `}>
-        <div className="flex items-center justify-between gap-3 mb-6 bg-black/40 p-3 rounded-2xl border border-white/5">
+        <div className="flex items-center justify-center gap-3 mb-6 bg-black/40 p-3 rounded-2xl border border-white/5">
           <div className="flex items-center gap-3">
-             <Database className={`w-6 h-6 ${isBwMode ? 'text-white' : 'text-slate-400'}`} />
-             <h3 className={`text-xl font-extrabold tracking-widest uppercase ${isBwMode ? 'text-white' : 'text-white'}`}>
-               Shared Main Memory
+             <Database className={`w-6 h-6 shrink-0 ${isBwMode ? 'text-white' : 'text-slate-400'}`} />
+             <h3 className={`text-xl font-extrabold tracking-widest uppercase whitespace-nowrap ${isBwMode ? 'text-white' : 'text-white'}`}>
+               SHARED MAIN MEMORY
              </h3>
           </div>
-          <span className="text-xs text-slate-500 font-mono tracking-wider italic pr-2">Click edit icon to override</span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

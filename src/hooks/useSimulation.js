@@ -117,9 +117,53 @@ export const useSimulation = (protocolType, processorCount = 3) => {
   }, [protocolType]);
 
   /* ─────────────────────── flushMemory ────────────────────── */
-  const flushMemory = useCallback((address = null) => {
-    // Intentionally omitted functionality: strict MOESI does not update memory.
-  }, []);
+  const flushMemory = useCallback(() => {
+    if (protocolType !== 'MOESI') return;
+    
+    let isFlushed = false;
+    const newLogs = [];
+
+    // Use engineRef to synchronously mutate the engine's internal state
+    if (engineRef.current) {
+      engineRef.current.processors.forEach(p => {
+        Object.keys(p.cache).forEach(addr => {
+          const line = p.cache[addr];
+          if (line && (line.state === 'M' || line.state === 'O')) {
+            const oldState = line.state;
+            
+            // 1. Update memory
+            engineRef.current.memory[addr] = line.data;
+            
+            // 2. Change state
+            line.state = 'S';
+            
+            isFlushed = true;
+            
+            // 3. Log
+            const logItem = {
+              id: Date.now() + Math.random(),
+              time: new Date().toLocaleTimeString(),
+              message: `[Manual Flush] Memory ${addr} updated from ${p.id} (${oldState}→S). Data=${line.data}`
+            };
+            newLogs.push(logItem);
+            engineRef.current.logs.push(logItem); // Keep engine logs strictly in sync
+            
+            // Update transitions stat for completeness, though it's optional here
+            engineRef.current.stats.transitions++;
+          }
+        });
+      });
+      
+      if (isFlushed) {
+        // Apply engine state cleanly back to React state
+        setMemory({ ...engineRef.current.memory });
+        setProcessors(JSON.parse(JSON.stringify(engineRef.current.processors)));
+        setStats({ ...engineRef.current.stats });
+        setLogs(prev => [...newLogs.reverse(), ...prev]);
+        setBusMessage(null); // Clear bus message smoothly
+      }
+    }
+  }, [protocolType]);
 
   /* ─────────────────────── resetSimulation ──────────────────── */
   const resetSimulation = useCallback(() => {
@@ -133,6 +177,12 @@ export const useSimulation = (protocolType, processorCount = 3) => {
     setGraphData([]);
     setHistory([]);
   }, [processorCount]);
+
+  /* ─────────────────────── clearHistory ─────────────────────── */
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    setLogs([]);
+  }, []);
 
   /* ─────────────────────── saveSimulation ───────────────────── */
   // Saves full simulation state as a JSON file download (fully client-side)
@@ -173,5 +223,6 @@ export const useSimulation = (protocolType, processorCount = 3) => {
     updateMemory,
     saveSimulation,
     flushMemory,
+    clearHistory,
   };
 };

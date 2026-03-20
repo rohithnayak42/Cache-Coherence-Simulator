@@ -514,6 +514,19 @@ export default class CoherencyEngine {
         const logObj = { action: "" };
         const otherCopies = this.processors.filter(p => p.id !== processorId).map(p => p.id);
 
+        // Store initial states for transition counting
+        const stateBefore = {};
+        Object.keys(this.cache).forEach(p => {
+            stateBefore[p] = this.cache[p][address] ? this.cache[p][address].state : 'I';
+        });
+
+        // 1 & 2. CACHE HIT / MISS logic dynamically
+        if (stateBefore[processorId] !== 'I') {
+            this.logStat('hits');
+        } else {
+            this.logStat('misses');
+        }
+
         // Call the user's implementation
         this._handleMOESI(processorId, operationType, address, logObj, otherCopies);
 
@@ -522,20 +535,23 @@ export default class CoherencyEngine {
             proc.cache[address].data = value;
         }
 
-        const action = logObj.action;
-        
-        // Map log.action back to our simulator's stats and UI messages
-        if (action === "NONE" || action === "SILENT_UPGRADE") {
-            this.logStat('hits');
-            if (action === "SILENT_UPGRADE") {
+        // 4. TRANSITIONS: dynamically log any state changes for any processor
+        Object.keys(this.cache).forEach(p => {
+            const finalState = this.cache[p][address] ? this.cache[p][address].state : 'I';
+            if (stateBefore[p] !== finalState) {
                 this.logStat('transitions');
             }
+        });
+
+        const action = logObj.action;
+        
+        // Map log.action back to our simulator's UI messages
+        if (action === "NONE" || action === "SILENT_UPGRADE") {
             this.addLog(`[${processorId}] ${operationType} ${address} → ${action === "NONE" ? "HIT" : action} (${proc.cache[address].state})`);
             return 'HIT';
         } else {
-            this.logStat('misses');
+            // 3. BUS TRAFFIC dynamically
             this.logStat('busTraffic');
-            this.logStat('transitions');
             
             // Reconstruct a plausible Bus message
             let busType = action;

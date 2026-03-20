@@ -7,7 +7,7 @@ import { SimulationHistory } from '../simulation/SimulationHistory';
 import { useSimulation } from '../../hooks/useSimulation';
 import {
   ArrowLeft, RotateCcw, AlertCircle, BarChart3,
-  Info, Activity, Save, History as HistoryIcon, CheckCircle2
+  Info, Activity, Save, History as HistoryIcon, CheckCircle2, Database
 } from 'lucide-react';
 
 const SimulationScreen = ({ protocol, onBack }) => {
@@ -29,7 +29,14 @@ const SimulationScreen = ({ protocol, onBack }) => {
     resetSimulation,
     updateMemory,
     saveSimulation,
+    clearHistory,
+    flushMemory,
   } = useSimulation(protocol, processorCount);
+
+  /* ─── Check for dirty lines in MOESI ─── */
+  const hasDirtyLines = protocol === 'MOESI' && processors.some(p => 
+    Object.values(p.cache).some(line => line.state === 'M' || line.state === 'O')
+  );
 
   /* ─── Auto-scroll event log to top (newest messages) ─── */
   useEffect(() => {
@@ -125,6 +132,19 @@ const SimulationScreen = ({ protocol, onBack }) => {
                   <span className="ml-1 bg-blue-500/30 text-blue-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">{history.length}</span>
                 )}
               </button>
+
+              {hasDirtyLines && (
+                <button
+                  onClick={() => {
+                    if (window.confirm("Do you want to update main memory?")) {
+                      flushMemory();
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl transition-all border border-emerald-500/30 text-sm font-bold animate-pulse"
+                >
+                  <Database className="w-4 h-4" /> Update Main Memory
+                </button>
+              )}
 
               <button
                 onClick={handleSave}
@@ -334,6 +354,7 @@ const SimulationScreen = ({ protocol, onBack }) => {
         isOpen={showHistory}
         onClose={() => setShowHistory(false)}
         history={history}
+        onClearHistory={clearHistory}
       />
     </>
   );

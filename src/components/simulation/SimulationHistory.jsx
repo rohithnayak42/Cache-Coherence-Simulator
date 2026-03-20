@@ -24,7 +24,7 @@ const RESULT_BADGE = {
  * SimulationHistory — fully client-side history panel.
  * Receives `history` prop: array of snapshots from useSimulation.
  */
-export const SimulationHistory = ({ isOpen, onClose, history = [] }) => {
+export const SimulationHistory = ({ isOpen, onClose, history = [], onClearHistory }) => {
   if (!isOpen) return null;
 
   return (
@@ -57,12 +57,26 @@ export const SimulationHistory = ({ isOpen, onClose, history = [] }) => {
               <p className="text-xs text-slate-500">{history.length} operation{history.length !== 1 ? 's' : ''} recorded</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {history.length > 0 && (
+              <button
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to clear history?")) {
+                    onClearHistory?.();
+                  }
+                }}
+                className="px-3 py-1.5 text-xs font-bold text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg transition-colors"
+              >
+                Clear History
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
