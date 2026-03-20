@@ -106,7 +106,7 @@ const SimulationScreen = ({ protocol, onBack }) => {
 
             {/* Core count selector */}
             <div className="flex flex-wrap justify-center bg-black/40 p-1 rounded-xl border border-white/5 shadow-inner">
-              {[2, 3, 4].map((count) => (
+              {[2, 3, 4, 5, 6, 7, 8].map((count) => (
                 <button
                   key={count}
                   onClick={() => handleCoreChange(count)}
@@ -239,18 +239,41 @@ const SimulationScreen = ({ protocol, onBack }) => {
               </AnimatePresence>
             </div>
 
-            {/* Processors Grid */}
-            <div className={`w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${processorCount} gap-4 sm:gap-6 lg:gap-8 mt-auto relative z-10 items-end`}>
-              {processors.map((p) => (
-                <ProcessorNode
-                  key={`${p.id}-${resetCount}`}
-                  processor={p}
-                  protocol={protocol}
-                  isActive={!!(busMessage && busMessage.sender === p.id)}
-                  busMessage={busMessage}
-                  onExecute={(pid, op, addr, val) => executeOperation(pid, op, addr, val)}
-                />
-              ))}
+            {/* Processors Layout */}
+            <div className="w-full flex flex-col gap-6 sm:gap-8 mt-auto relative z-10 items-center">
+              {/* Row 1 (Up to 4 cores) */}
+              <div className={`w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${Math.min(processors.length, 4)} gap-4 sm:gap-6 lg:gap-8 items-end`}>
+                {processors.slice(0, 4).map((p) => (
+                  <ProcessorNode
+                    key={`${p.id}-${resetCount}`}
+                    processor={p}
+                    protocol={protocol}
+                    isActive={!!(busMessage && busMessage.sender === p.id)}
+                    busMessage={busMessage}
+                    onExecute={(pid, op, addr, val) => executeOperation(pid, op, addr, val)}
+                  />
+                ))}
+              </div>
+
+              {/* Row 2 (Remaining cores: 5 to 8) */}
+              {processors.length > 4 && (
+                <div className="w-full flex flex-wrap justify-center gap-4 sm:gap-6 lg:gap-8 items-end">
+                  {processors.slice(4).map((p) => (
+                    <div 
+                      key={`${p.id}-${resetCount}`} 
+                      className="w-full md:w-[calc(50%-0.75rem)] lg:w-[calc(25%-1.5rem)]"
+                    >
+                      <ProcessorNode
+                        processor={p}
+                        protocol={protocol}
+                        isActive={!!(busMessage && busMessage.sender === p.id)}
+                        busMessage={busMessage}
+                        onExecute={(pid, op, addr, val) => executeOperation(pid, op, addr, val)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
