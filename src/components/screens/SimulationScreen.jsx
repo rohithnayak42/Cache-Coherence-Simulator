@@ -4,6 +4,7 @@ import { ProcessorNode } from '../simulation/ProcessorNode';
 import { MainMemoryView } from '../simulation/MainMemoryView';
 import { DynamicGraph } from '../simulation/DynamicGraph';
 import { SimulationHistory } from '../simulation/SimulationHistory';
+import { ControlPanel } from '../simulation/ControlPanel';
 import { useSimulation } from '../../hooks/useSimulation';
 import {
   ArrowLeft, RotateCcw, AlertCircle, BarChart3,
@@ -96,76 +97,18 @@ const SimulationScreen = ({ protocol, onBack }) => {
           </div>
 
           {/* Controls row */}
-          <div className="flex flex-wrap items-center justify-between gap-6 border-t border-white/5 pt-5">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors font-medium text-lg"
-            >
-              <ArrowLeft className="w-5 h-5" /> Change Protocol
-            </button>
-
-            {/* Core count selector */}
-            <div className="flex flex-wrap justify-center bg-black/40 p-1 rounded-xl border border-white/5 shadow-inner">
-              {[2, 3, 4, 5, 6, 7, 8].map((count) => (
-                <button
-                  key={count}
-                  onClick={() => handleCoreChange(count)}
-                  className={`px-4 py-2 font-bold text-sm rounded-lg transition-all ${
-                    processorCount === count
-                      ? 'bg-blue-500 text-white shadow-md shadow-blue-500/30'
-                      : 'text-slate-400 hover:text-white hover:bg-white/10'
-                  }`}
-                >
-                  {count} Cores
-                </button>
-              ))}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex flex-wrap justify-center items-center gap-2">
-              <button
-                onClick={() => setShowHistory(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl transition-all border border-white/5 text-sm font-bold"
-              >
-                <HistoryIcon className="w-4 h-4" /> History
-                {history.length > 0 && (
-                  <span className="ml-1 bg-blue-500/30 text-blue-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">{history.length}</span>
-                )}
-              </button>
-
-              {hasDirtyLines && (
-                <button
-                  onClick={() => {
-                    if (window.confirm("Do you want to update main memory?")) {
-                      flushMemory();
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-xl transition-all border border-emerald-500/30 text-sm font-bold animate-pulse"
-                >
-                  <Database className="w-4 h-4" /> Update Main Memory
-                </button>
-              )}
-
-              <button
-                onClick={handleSave}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all border text-sm font-bold ${
-                  saveSuccess
-                    ? 'bg-green-500/20 border-green-500/50 text-green-400'
-                    : 'bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30 text-blue-400'
-                }`}
-              >
-                {saveSuccess ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {saveSuccess ? 'Saved!' : 'Save'}
-              </button>
-
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-all border border-red-500/30 text-sm font-bold"
-              >
-                <RotateCcw className="w-4 h-4" /> Reset Simulation
-              </button>
-            </div>
-          </div>
+          <ControlPanel
+            onBack={onBack}
+            processorCount={processorCount}
+            onCoreChange={handleCoreChange}
+            historyCount={history.length}
+            onShowHistory={() => setShowHistory(true)}
+            hasDirtyLines={hasDirtyLines}
+            onFlushMemory={flushMemory}
+            onSave={handleSave}
+            saveSuccess={saveSuccess}
+            onReset={handleReset}
+          />
         </div>
 
         <div className="w-full max-w-[1400px] mx-auto flex flex-col gap-10">
