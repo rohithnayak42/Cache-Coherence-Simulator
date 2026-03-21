@@ -5,22 +5,7 @@ import {
 } from 'recharts';
 import { useState, useEffect } from 'react';
 
-// ─── shared BW-mode detection (reuse pattern from other components) ───
-const getIsBwMode = () => document.body.classList.contains('theme-bw');
-const bwListeners = new Set();
-const sharedObserver = new MutationObserver(() => {
-  const val = getIsBwMode();
-  bwListeners.forEach(cb => cb(val));
-});
-sharedObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-const useBwMode = () => {
-  const [isBwMode, setIsBwMode] = useState(getIsBwMode);
-  useEffect(() => {
-    bwListeners.add(setIsBwMode);
-    return () => bwListeners.delete(setIsBwMode);
-  }, []);
-  return isBwMode;
-};
+import { useBwMode } from '../../hooks/useBwMode';
 
 // Custom tooltip
 const CustomTooltip = ({ active, payload, label }) => {
@@ -48,17 +33,17 @@ const CustomTooltip = ({ active, payload, label }) => {
 export const DynamicGraph = memo(({ graphData = [] }) => {
   const isBwMode = useBwMode();
 
-  const hitColor        = isBwMode ? '#ffffff' : '#10b981';
-  const missColor       = isBwMode ? '#a3a3a3' : '#f43f5e';
-  const trafficColor    = isBwMode ? '#525252' : '#f59e0b';
-  const transitionColor = isBwMode ? '#888888' : '#818cf8';
-  const gridColor       = isBwMode ? '#333' : 'rgba(255,255,255,0.04)';
-  const axisColor       = isBwMode ? '#666' : '#475569';
+  const hitColor        = isBwMode ? '#22c55e' : '#10b981';
+  const missColor       = isBwMode ? '#ef4444' : '#f43f5e';
+  const trafficColor    = isBwMode ? '#3b82f6' : '#f59e0b';
+  const transitionColor = isBwMode ? '#8b5cf6' : '#818cf8';
+  const gridColor       = isBwMode ? '#e2e8f0' : 'rgba(255,255,255,0.04)';
+  const axisColor       = isBwMode ? '#1e293b' : '#475569';
 
   if (graphData.length === 0) {
     return (
-      <div className={`w-full h-full min-h-[300px] flex flex-col items-center justify-center rounded-xl border
-        ${isBwMode ? 'bg-[#111] border-[#333]' : 'bg-black/40 border-white/5'}`}>
+      <div className={`w-full h-full min-h-[300px] flex flex-col items-center justify-center rounded-xl border transition-all duration-300
+        ${isBwMode ? 'bg-white border-[#e2e8f0]' : 'bg-black/40 border-white/5'}`}>
         <svg className="w-12 h-12 mb-3 opacity-20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M3 17l4-8 4 5 4-3 4 6" />
         </svg>
@@ -68,7 +53,7 @@ export const DynamicGraph = memo(({ graphData = [] }) => {
   }
 
   return (
-    <div className={`w-full h-full min-h-[300px] p-2 rounded-xl border ${isBwMode ? 'bg-[#111] border-[#333]' : 'bg-black/40 border-white/5'}`}>
+    <div className={`w-full h-full min-h-[300px] p-2 rounded-xl transition-all duration-300 ${isBwMode ? 'bg-white' : 'bg-black/40 border border-white/5'}`}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={graphData} margin={{ top: 10, right: 20, left: -10, bottom: 0 }}>
           <defs>

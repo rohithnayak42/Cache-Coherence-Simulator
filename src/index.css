@@ -23,11 +23,11 @@
   
   /* Modern Light Theme Override (using the .theme-bw class name for compatibility) */
   .theme-bw {
-    --color-background: #eff6ff;
+    --color-background: #f8fafc;
     --color-surface: #ffffff;
     --color-primary: #2563eb;
-    --color-secondary: #7c3aed;
-    --color-accent: #059669;
+    --color-secondary: #475569;
+    --color-accent: #22c55e;
     --color-text: #0f172a;
   }
 }
